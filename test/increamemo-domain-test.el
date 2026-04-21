@@ -157,5 +157,34 @@
                     increamemo-db-file
                     "SELECT COUNT(*) FROM increamemo_history")))))))
 
+(ert-deftest increamemo-domain-skip-item-writes-history-without-state-change ()
+  "Skipping an item keeps its scheduling data and appends history."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/skip.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (skipped-item
+            (increamemo-domain-skip-item
+             (plist-get item :id)
+             "2026-04-21T09:00:00+00:00")))
+      (should (equal (plist-get skipped-item :state) "active"))
+      (should (equal (plist-get skipped-item :next-due-date) "2026-04-21"))
+      (should
+       (equal
+        (increamemo-test-support-select-row
+         increamemo-db-file
+         "SELECT state, next_due_date FROM increamemo_items WHERE id = ?"
+         (list (plist-get item :id)))
+        '("active" "2026-04-21")))
+      (should (= 1
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'skipped'"
+                  (list (plist-get item :id))))))))
+
 (provide 'increamemo-domain-test)
 ;;; increamemo-domain-test.el ends here

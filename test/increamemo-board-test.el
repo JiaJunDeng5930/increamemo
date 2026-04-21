@@ -31,6 +31,12 @@
   "Return the title column from ENTRIES."
   (mapcar (lambda (entry) (aref (cadr entry) 5)) entries))
 
+(defun increamemo-board-test--goto-entry (title)
+  "Move point to the row whose title column matches TITLE."
+  (goto-char (point-min))
+  (search-forward title)
+  (beginning-of-line))
+
 (defun increamemo-board-test--setup-items (root)
   "Create planned, due, invalid, and archived items under ROOT."
   (let* ((planned-path (increamemo-board-test--write-note root "notes/planned.md"))
@@ -155,6 +161,92 @@
                             (kill-buffer opened-buffer)))))
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
+
+(ert-deftest increamemo-board-actions-update-items-and-refresh-entries ()
+  "Board row actions update persistent state and refresh the table."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21"))
+                      ((symbol-function 'increamemo-time-now)
+                       (lambda () "2026-04-21T09:00:00+00:00")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-test--goto-entry "planned.md")
+                      (cl-letf (((symbol-function 'read-string)
+                                 (lambda (&rest _args) "2026-04-19")))
+                        (increamemo-board-update-current-due-date))
+                      (increamemo-board-show-due)
+                      (should (equal (increamemo-board-test--entry-labels
+                                      tabulated-list-entries)
+                                     '("due.md" "planned.md")))
+                      (increamemo-board-show-invalid)
+                      (increamemo-board-show-planned)
+                      (increamemo-board-test--goto-entry "planned.md")
+                      (cl-letf (((symbol-function 'read-number)
+                                 (lambda (&rest _args) 5)))
+                        (increamemo-board-update-current-priority))
+                      (should (equal (car (increamemo-board-test--entry-labels
+                                           tabulated-list-entries))
+                                     "planned.md"))
+                      (increamemo-board-test--goto-entry "due.md")
+                      (increamemo-board-archive-current-item)
+                      (should-not (member "due.md"
+                                          (increamemo-board-test--entry-labels
+                                           tabulated-list-entries))))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))
+    (should
+     (equal
+      (increamemo-test-support-select-row
+       increamemo-db-file
+       (concat
+        "SELECT next_due_date, priority, state "
+        "FROM increamemo_items WHERE title_snapshot = ?")
+       '("planned.md"))
+      '("2026-04-19" 5 "active")))))
+
+(ert-deftest increamemo-board-add-item-prompts-and-refreshes ()
+  "Adding an item from the board persists it and refreshes the listing."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((root (make-temp-file "increamemo-board-" t))
+           (manual-path (increamemo-board-test--write-note root "notes/manual.md"))
+           (answers (list "file" manual-path "find-file" "2026-04-23")))
+      (unwind-protect
+          (cl-letf (((symbol-function 'read-string)
+                     (lambda (&rest _args)
+                       (prog1 (car answers)
+                         (setq answers (cdr answers)))))
+                    ((symbol-function 'read-number)
+                     (lambda (&rest _args) 15))
+                    ((symbol-function 'increamemo-time-today)
+                     (lambda () "2026-04-21"))
+                    ((symbol-function 'increamemo-time-now)
+                     (lambda () "2026-04-21T09:00:00+00:00")))
+            (let ((buffer (increamemo-board-open)))
+              (unwind-protect
+                  (with-current-buffer buffer
+                    (increamemo-board-add-item)
+                    (should (equal (increamemo-board-test--entry-labels
+                                    tabulated-list-entries)
+                                   '("manual.md"))))
+                (kill-buffer buffer))))
+        (delete-directory root t))
+      (should
+       (equal
+        (increamemo-test-support-select-row
+         increamemo-db-file
+         (concat
+          "SELECT type, locator, opener, next_due_date, priority "
+          "FROM increamemo_items WHERE title_snapshot = ?")
+         '("manual.md"))
+        (list "file" manual-path "find-file" "2026-04-23" 15))))))
 
 (provide 'increamemo-board-test)
 ;;; increamemo-board-test.el ends here

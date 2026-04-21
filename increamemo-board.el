@@ -24,6 +24,10 @@
 (defvar increamemo-board-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map tabulated-list-mode-map)
+    (define-key map (kbd "a") #'increamemo-board-add-item)
+    (define-key map (kbd "A") #'increamemo-board-archive-current-item)
+    (define-key map (kbd "d") #'increamemo-board-update-current-due-date)
+    (define-key map (kbd "p") #'increamemo-board-update-current-priority)
     (define-key map (kbd "t") #'increamemo-board-show-due)
     (define-key map (kbd "i") #'increamemo-board-show-invalid)
     (define-key map (kbd "g") #'increamemo-board-refresh)
@@ -54,6 +58,23 @@
   (let ((item-id (tabulated-list-get-id)))
     (alist-get item-id increamemo-board--items)))
 
+(defun increamemo-board--current-item-required ()
+  "Return the current board item or raise `user-error'."
+  (or (increamemo-board--current-item)
+      (user-error "Increamemo: no board item on the current line")))
+
+(defun increamemo-board--normalize-locator (type locator)
+  "Return a normalized LOCATOR for TYPE."
+  (if (string= type "file")
+      (expand-file-name locator)
+    locator))
+
+(defun increamemo-board--title-snapshot (type locator)
+  "Return a title snapshot for TYPE and LOCATOR."
+  (if (string= type "file")
+      (file-name-nondirectory locator)
+    locator))
+
 (defun increamemo-board-refresh ()
   "Refresh the board entries for the current filter."
   (interactive)
@@ -75,17 +96,69 @@
   (setq increamemo-board--filter 'due)
   (increamemo-board-refresh))
 
+(defun increamemo-board-show-planned ()
+  "Switch the board to the planned filter."
+  (interactive)
+  (setq increamemo-board--filter 'planned)
+  (increamemo-board-refresh))
+
 (defun increamemo-board-show-invalid ()
   "Switch the board to the invalid filter."
   (interactive)
   (setq increamemo-board--filter 'invalid)
   (increamemo-board-refresh))
 
+(defun increamemo-board-add-item ()
+  "Prompt for item fields, persist the item, and refresh the board."
+  (interactive)
+  (let* ((type (read-string "Type: "))
+         (locator-input (read-string "Locator: "))
+         (locator (increamemo-board--normalize-locator type locator-input))
+         (opener (read-string "Opener: "))
+         (priority (read-number "Priority: "))
+         (due-date (read-string "Due date: ")))
+    (increamemo-domain-ensure-item
+     (list :type type
+           :locator locator
+           :opener opener
+           :title-snapshot (increamemo-board--title-snapshot type locator))
+     priority
+     due-date
+     (increamemo-time-now))
+    (increamemo-board-refresh)))
+
+(defun increamemo-board-archive-current-item ()
+  "Archive the current board row item and refresh."
+  (interactive)
+  (increamemo-domain-archive-item
+   (plist-get (increamemo-board--current-item-required) :id)
+   (increamemo-time-now))
+  (increamemo-board-refresh))
+
+(defun increamemo-board-update-current-due-date ()
+  "Update the due date for the current board row item."
+  (interactive)
+  (let ((item (increamemo-board--current-item-required)))
+    (increamemo-domain-update-due-date
+     (plist-get item :id)
+     (read-string "Due date: " (plist-get item :next-due-date))
+     (increamemo-time-now))
+    (increamemo-board-refresh)))
+
+(defun increamemo-board-update-current-priority ()
+  "Update the priority for the current board row item."
+  (interactive)
+  (let ((item (increamemo-board--current-item-required)))
+    (increamemo-domain-update-priority
+     (plist-get item :id)
+     (read-number "Priority: " (plist-get item :priority))
+     (increamemo-time-now))
+    (increamemo-board-refresh)))
+
 (defun increamemo-board-open-current-item ()
   "Open the current board row item."
   (interactive)
-  (let ((item (or (increamemo-board--current-item)
-                  (user-error "Increamemo: no board item on the current line"))))
+  (let ((item (increamemo-board--current-item-required)))
     (condition-case err
         (increamemo-opener-open-item item)
       (increamemo-opener-error

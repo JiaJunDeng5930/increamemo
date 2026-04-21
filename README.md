@@ -41,6 +41,12 @@ pre-commit install
 
 ## Current Scope
 
-The initial commit establishes configuration gating, SQLite schema initialization,
-test scaffolding, and repository automation. Domain workflow features remain as
-named module boundaries with explicit placeholders.
+The package currently covers the core scheduling workflow described in the
+project docs:
+
+- database initialization and schema migration
+- file and EKG note item registration
+- due-item ordering, completion, deferral, archiving, skipping, and reprioritization
+- work-session progress tracking with transient session state
+- board listing, filtering, manual item creation, and row-level item updates
+- opener failure handling policies for keep, archive, and delete

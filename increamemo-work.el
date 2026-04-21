@@ -33,6 +33,10 @@
 (defvar-local increamemo-work--session-id nil
   "The owning session id for the current work buffer.")
 
+(defconst increamemo-work--day-offset-regexp
+  "\\`\\+?\\([0-9]+\\)\\'"
+  "Regexp used for defer prompts that specify a day offset.")
+
 (defvar increamemo-work-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c , c") #'increamemo-work-complete)
@@ -74,6 +78,45 @@
   "Clear work session state from the current buffer."
   (setq increamemo-work--current-item-id nil)
   (setq increamemo-work--session-id nil))
+
+(defun increamemo-work--require-current-item-id ()
+  "Return the current work item id or raise `user-error'."
+  (unless (and increamemo-work--session
+               increamemo-work--current-item-id)
+    (user-error "Increamemo: no active work item"))
+  increamemo-work--current-item-id)
+
+(defun increamemo-work--mark-current-handled ()
+  "Increment the handled count for the active session."
+  (setf (increamemo-session-handled-count increamemo-work--session)
+        (1+ (increamemo-session-handled-count increamemo-work--session))))
+
+(defun increamemo-work--deactivate-current-buffer ()
+  "Disable work mode and clear local state in the current buffer."
+  (increamemo-work-mode -1)
+  (increamemo-work--clear-buffer-state))
+
+(defun increamemo-work--date-add-days (date days)
+  "Return DATE plus DAYS as an ISO date string."
+  (let* ((year (string-to-number (substring date 0 4)))
+         (month (string-to-number (substring date 5 7)))
+         (day (string-to-number (substring date 8 10)))
+         (base-time (encode-time 0 0 0 day month year nil)))
+    (format-time-string "%F" (time-add base-time (days-to-time days)) t)))
+
+(defun increamemo-work--parse-defer-date (input base-date)
+  "Return a due date parsed from INPUT using BASE-DATE.
+
+INPUT accepts either an ISO date or a positive day offset."
+  (cond
+   ((string-match-p increamemo-domain--date-regexp input)
+    input)
+   ((string-match increamemo-work--day-offset-regexp input)
+    (increamemo-work--date-add-days
+     base-date
+     (string-to-number (match-string 1 input))))
+   (t
+    (user-error "Increamemo: invalid defer input: %S" input))))
 
 (defun increamemo-work--activate-buffer (buffer item)
   "Enable work mode in BUFFER for ITEM."
@@ -132,41 +175,61 @@
 (defun increamemo-work-complete ()
   "Complete the current item."
   (interactive)
-  (unless (and increamemo-work--session
-               increamemo-work--current-item-id)
-    (user-error "Increamemo: no active work item"))
-  (let* ((result
+  (let* ((item-id (increamemo-work--require-current-item-id))
+         (result
           (increamemo-domain-complete-current
-           increamemo-work--current-item-id
+           item-id
            (increamemo-session-date increamemo-work--session)
            (increamemo-time-now)))
          (status (plist-get result :status)))
     (when (eq status 'completed)
-      (setf (increamemo-session-handled-count increamemo-work--session)
-            (1+ (increamemo-session-handled-count increamemo-work--session))))
-    (increamemo-work-mode -1)
-    (increamemo-work--clear-buffer-state)
+      (increamemo-work--mark-current-handled))
+    (increamemo-work--deactivate-current-buffer)
     (increamemo-work--open-next-item)))
 
 (defun increamemo-work-archive ()
   "Archive the current item."
   (interactive)
-  (user-error "Increamemo: archive is not implemented yet"))
+  (increamemo-domain-archive-item
+   (increamemo-work--require-current-item-id)
+   (increamemo-time-now))
+  (increamemo-work--mark-current-handled)
+  (increamemo-work--deactivate-current-buffer)
+  (increamemo-work--open-next-item))
 
 (defun increamemo-work-defer ()
   "Defer the current item."
   (interactive)
-  (user-error "Increamemo: defer is not implemented yet"))
+  (let* ((item-id (increamemo-work--require-current-item-id))
+         (raw-input (read-string "Defer to date or +days: "))
+         (new-due-date
+          (increamemo-work--parse-defer-date
+           raw-input
+           (increamemo-session-date increamemo-work--session))))
+    (increamemo-domain-defer-item item-id new-due-date (increamemo-time-now))
+    (increamemo-work--mark-current-handled)
+    (increamemo-work--deactivate-current-buffer)
+    (increamemo-work--open-next-item)))
 
 (defun increamemo-work-skip ()
   "Skip the current item."
   (interactive)
-  (user-error "Increamemo: skip is not implemented yet"))
+  (let ((item-id (increamemo-work--require-current-item-id)))
+    (increamemo-domain-skip-item item-id (increamemo-time-now))
+    (cl-pushnew item-id
+                (increamemo-session-excluded-item-ids increamemo-work--session))
+    (increamemo-work--mark-current-handled)
+    (increamemo-work--deactivate-current-buffer)
+    (increamemo-work--open-next-item)))
 
 (defun increamemo-work-update-priority ()
   "Adjust the current item priority."
   (interactive)
-  (user-error "Increamemo: priority update is not implemented yet"))
+  (increamemo-domain-update-priority
+   (increamemo-work--require-current-item-id)
+   (read-number "Priority: ")
+   (increamemo-time-now))
+  (force-mode-line-update t))
 
 (defun increamemo-work-quit ()
   "Quit the current work session."

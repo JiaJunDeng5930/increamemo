@@ -439,6 +439,33 @@ When OCCURRED-AT is nil, use the current timestamp."
 When OCCURRED-AT is nil, use the current timestamp."
   (increamemo-domain-defer-item item-id due-date occurred-at))
 
+(defun increamemo-domain-skip-item (item-id &optional occurred-at)
+  "Record a skip action for ITEM-ID without changing its schedule.
+
+When OCCURRED-AT is nil, use the current timestamp."
+  (let ((validated-occurred-at
+         (increamemo-domain--require-timestamp
+          (or occurred-at (increamemo-time-now)))))
+    (increamemo-domain--update-item
+     item-id
+     validated-occurred-at
+     "skipped"
+     (lambda (row)
+       (let ((version (nth 13 row)))
+         (list :sql
+               (concat
+                "UPDATE increamemo_items "
+                "SET updated_at = ?, version = version + 1 "
+                "WHERE id = ? AND version = ?")
+               :values (list validated-occurred-at item-id version)
+               :previous-state (nth 7 row)
+               :new-state (nth 7 row)
+               :previous-due-date (nth 5 row)
+               :new-due-date (nth 5 row)
+               :previous-priority (nth 6 row)
+               :new-priority (nth 6 row))))
+     '(active))))
+
 (defun increamemo-domain-record-open-failure
     (item-id error-message &optional occurred-at)
   "Record an open failure for ITEM-ID with ERROR-MESSAGE.
