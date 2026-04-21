@@ -69,16 +69,26 @@
 
 (ert-deftest increamemo-ekg-backend-builds-manual-source-ref ()
   "The EKG backend provides default opener and title for manual items."
-  (let ((source-ref (increamemo-ekg-backend-build-source-ref "ekg" "42")))
-    (should (equal (plist-get source-ref :type) "ekg"))
-    (should (equal (plist-get source-ref :locator) "42"))
-    (should (eq (plist-get source-ref :opener) 'increamemo-ekg-open-note))
-    (should (equal (plist-get source-ref :title-snapshot) "42"))))
+  (cl-letf (((symbol-function 'ekg-get-note-with-id)
+             (lambda (_note-id) nil))
+            ((symbol-function 'ekg-edit)
+             (lambda (_note) nil)))
+    (let ((source-ref (increamemo-ekg-backend-build-source-ref "ekg" "42")))
+      (should (equal (plist-get source-ref :type) "ekg"))
+      (should (equal (plist-get source-ref :locator) "42"))
+      (should (eq (plist-get source-ref :opener) 'increamemo-ekg-open-note))
+      (should (equal (plist-get source-ref :title-snapshot) "42")))))
 
 (ert-deftest increamemo-ekg-backend-build-source-ref-validates-locator ()
   "Manual EKG source refs reject invalid locator syntax."
   (should-error
    (increamemo-ekg-backend-build-source-ref "ekg" "(")
+   :type 'user-error))
+
+(ert-deftest increamemo-ekg-backend-build-source-ref-requires-ekg-opening-api ()
+  "Manual EKG source refs require the EKG opening functions."
+  (should-error
+   (increamemo-ekg-backend-build-source-ref "ekg" "42")
    :type 'user-error))
 
 (provide 'increamemo-backend-ekg-test)

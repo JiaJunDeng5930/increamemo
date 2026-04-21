@@ -49,6 +49,8 @@
   (when (string= type "ekg")
     (let ((normalized-locator
            (increamemo-ekg-backend--normalize-locator locator)))
+      (increamemo-ekg-backend--require-function 'ekg-get-note-with-id)
+      (increamemo-ekg-backend--require-function 'ekg-edit)
     (list :type "ekg"
           :locator normalized-locator
           :opener (or opener 'increamemo-ekg-open-note)
