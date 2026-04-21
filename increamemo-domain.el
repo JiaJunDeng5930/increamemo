@@ -204,6 +204,14 @@ Signal `user-error' when the guarded write did not advance the row version."
       (user-error "Increamemo: version conflict for item %s" item-id))
     row))
 
+(defun increamemo-domain--execute-guarded-update (connection sql values)
+  "Execute guarded update SQL with VALUES on CONNECTION.
+
+Return the number of rows changed by the update statement."
+  (increamemo-storage-execute connection sql values)
+  (or (increamemo-storage-select-value connection "SELECT changes()")
+      0))
+
 (defun increamemo-domain--find-live-duplicate-row (connection type locator)
   "Return the active or invalid row on CONNECTION for TYPE and LOCATOR."
   (car
@@ -268,7 +276,13 @@ ALLOWED-STATES defines which current states may apply ACTION."
                      (sql (plist-get changes :sql))
                      (values (plist-get changes :values))
                      (updated-row nil))
-                (increamemo-storage-execute connection sql values)
+                (unless (= 1
+                           (increamemo-domain--execute-guarded-update
+                            connection
+                            sql
+                            values))
+                  (user-error "Increamemo: version conflict for item %s"
+                              item-id))
                 (setq updated-row
                       (increamemo-domain--require-advanced-version
                        connection
@@ -692,37 +706,50 @@ When OCCURRED-AT is nil, use the current timestamp."
                      history-summary
                      validated-today)))
               (increamemo-storage-with-transaction connection
-                (increamemo-storage-execute
-                 connection
-                 (concat
-                  "UPDATE increamemo_items "
-                  "SET next_due_date = ?, last_reviewed_at = ?, "
-                  "updated_at = ?, version = version + 1 "
-                  "WHERE id = ? AND version = ?")
-                 (list new-due-date
-                       validated-occurred-at
-                       validated-occurred-at
-                       item-id
-                       (nth 13 row)))
-                (let ((updated-row
-                       (increamemo-domain--require-advanced-version
+                (let ((affected-rows
+                       (increamemo-domain--execute-guarded-update
                         connection
-                        item-id
-                        (nth 13 row))))
-                (increamemo-domain--insert-history
-                 connection
-                 item-id
-                 "completed"
-                 validated-occurred-at
-                 "active"
-                 "active"
-                 (nth 5 row)
-                 new-due-date
-                 (nth 6 row)
-                 (nth 6 row))
-                  (list
-                   :status 'completed
-                   :item (increamemo-domain--row-to-item updated-row)))))))
+                        (concat
+                         "UPDATE increamemo_items "
+                         "SET next_due_date = ?, last_reviewed_at = ?, "
+                         "updated_at = ?, version = version + 1 "
+                         "WHERE id = ? AND version = ?")
+                        (list new-due-date
+                              validated-occurred-at
+                              validated-occurred-at
+                              item-id
+                              (nth 13 row)))))
+                  (if (= affected-rows 1)
+                      (let ((updated-row
+                             (increamemo-domain--require-advanced-version
+                              connection
+                              item-id
+                              (nth 13 row))))
+                        (increamemo-domain--insert-history
+                         connection
+                         item-id
+                         "completed"
+                         validated-occurred-at
+                         "active"
+                         "active"
+                         (nth 5 row)
+                         new-due-date
+                         (nth 6 row)
+                         (nth 6 row))
+                        (list
+                         :status 'completed
+                         :item (increamemo-domain--row-to-item updated-row)))
+                    (let ((current-row
+                           (increamemo-domain--select-item-row connection item-id)))
+                      (if (and current-row
+                               (equal (nth 7 current-row) "active")
+                               (let ((current-due-date (nth 5 current-row)))
+                                 (and current-due-date
+                                      (string< validated-today current-due-date))))
+                          (list :status 'stale
+                                :item (increamemo-domain--row-to-item current-row))
+                        (user-error "Increamemo: version conflict for item %s"
+                                    item-id)))))))))
       (increamemo-storage-close connection))))
 
 (provide 'increamemo-domain)

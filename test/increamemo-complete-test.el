@@ -219,12 +219,13 @@
                10
                "2026-04-21"
                "2026-04-21T08:00:00+00:00"))
-             (original-execute (symbol-function 'increamemo-storage-execute)))
-        (cl-letf (((symbol-function 'increamemo-storage-execute)
-                   (lambda (connection sql &optional values)
+             (original-guarded-update
+              (symbol-function 'increamemo-domain--execute-guarded-update)))
+        (cl-letf (((symbol-function 'increamemo-domain--execute-guarded-update)
+                   (lambda (connection sql values)
                      (if (string-match-p "\\`UPDATE increamemo_items" sql)
-                         nil
-                       (funcall original-execute connection sql values)))))
+                         0
+                       (funcall original-guarded-update connection sql values)))))
           (should-error
            (increamemo-domain-complete-current
             (plist-get item :id)
@@ -243,6 +244,59 @@
                     increamemo-db-file
                     "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
                     (list (plist-get item :id)))))))))
+
+(ert-deftest increamemo-domain-complete-current-returns-stale-after-concurrent-defer ()
+  "Completion returns stale after another update moves the item into the future."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-reschedule-function
+           (lambda (_item _action _history-summary _today) "2026-04-28")))
+      (let* ((item
+              (increamemo-domain-ensure-item
+               (list :type "file"
+                     :locator "/tmp/topic-stale.md"
+                     :opener 'find-file
+                     :title-snapshot "topic-stale.md")
+               10
+               "2026-04-21"
+               "2026-04-21T08:00:00+00:00"))
+             (item-id (plist-get item :id))
+             (original-guarded-update
+              (symbol-function 'increamemo-domain--execute-guarded-update)))
+        (cl-letf (((symbol-function 'increamemo-domain--execute-guarded-update)
+                   (lambda (connection sql values)
+                     (if (string-match-p "\\`UPDATE increamemo_items" sql)
+                         (progn
+                           (increamemo-storage-execute
+                            connection
+                            (concat
+                             "UPDATE increamemo_items "
+                             "SET next_due_date = ?, updated_at = ?, version = version + 1 "
+                             "WHERE id = ? AND version = ?")
+                            (list "2026-04-24"
+                                  "2026-04-21T08:59:00+00:00"
+                                  item-id
+                                  0))
+                           0)
+                       (funcall original-guarded-update connection sql values)))))
+          (let ((result
+                 (increamemo-domain-complete-current
+                  item-id
+                  "2026-04-21"
+                  "2026-04-21T09:00:00+00:00")))
+            (should (eq (plist-get result :status) 'stale))
+            (should
+             (equal
+              (increamemo-test-support-select-row
+               increamemo-db-file
+               "SELECT next_due_date, version, last_reviewed_at FROM increamemo_items WHERE id = ?"
+               (list item-id))
+              '("2026-04-24" 1 nil)))
+            (should (= 1
+                       (increamemo-test-support-count-rows
+                        increamemo-db-file
+                        "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+                        (list item-id))))))))))
 
 (provide 'increamemo-complete-test)
 ;;; increamemo-complete-test.el ends here

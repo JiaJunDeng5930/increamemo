@@ -254,12 +254,13 @@
              15
              "2026-04-21"
              "2026-04-21T08:00:00+00:00"))
-           (original-execute (symbol-function 'increamemo-storage-execute)))
-      (cl-letf (((symbol-function 'increamemo-storage-execute)
-                 (lambda (connection sql &optional values)
+           (original-guarded-update
+            (symbol-function 'increamemo-domain--execute-guarded-update)))
+      (cl-letf (((symbol-function 'increamemo-domain--execute-guarded-update)
+                 (lambda (connection sql values)
                    (if (string-match-p "\\`UPDATE increamemo_items" sql)
-                       nil
-                     (funcall original-execute connection sql values)))))
+                       0
+                     (funcall original-guarded-update connection sql values)))))
         (should-error
          (increamemo-domain-update-priority
           (plist-get item :id)
