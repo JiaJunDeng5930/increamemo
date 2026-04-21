@@ -587,7 +587,7 @@ When OCCURRED-AT is nil, use the current timestamp."
      (increamemo-domain--update-item
       item-id
       validated-occurred-at
-      "deferred"
+      "due_changed"
       (lambda (row)
         (let ((version (nth 13 row)))
           (list :sql

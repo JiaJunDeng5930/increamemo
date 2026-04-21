@@ -269,7 +269,19 @@
              "2026-04-25"
              "2026-04-21T09:00:00+00:00")))
       (should (eq (plist-get result :status) 'updated))
-      (should (equal (plist-get result :next-due-date) "2026-04-25")))))
+      (should (equal (plist-get result :next-due-date) "2026-04-25"))
+      (should
+       (= 1
+          (increamemo-test-support-count-rows
+           increamemo-db-file
+           "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'due_changed'"
+           (list (plist-get item :id)))))
+      (should
+       (= 0
+          (increamemo-test-support-count-rows
+           increamemo-db-file
+           "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'deferred'"
+           (list (plist-get item :id))))))))
 
 (ert-deftest increamemo-domain-update-due-date-allows-archived-items ()
   "Updating due date preserves archived state for archived items."
