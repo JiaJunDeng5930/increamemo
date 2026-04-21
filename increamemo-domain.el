@@ -613,28 +613,34 @@ When OCCURRED-AT is nil, use the current timestamp."
 When OCCURRED-AT is nil, use the current timestamp."
   (let ((validated-occurred-at
          (increamemo-domain--require-timestamp
-          (or occurred-at (increamemo-time-now)))))
-    (increamemo-domain--with-status
-     'skipped
-     (increamemo-domain--update-item
-      item-id
-      validated-occurred-at
-      "skipped"
-      (lambda (row)
-        (let ((version (nth 13 row)))
-          (list :sql
-                (concat
-                 "UPDATE increamemo_items "
-                 "SET updated_at = ?, version = version + 1 "
-                 "WHERE id = ? AND version = ?")
-                :values (list validated-occurred-at item-id version)
-                :previous-state (nth 7 row)
-                :new-state (nth 7 row)
-                :previous-due-date (nth 5 row)
-                :new-due-date (nth 5 row)
-                :previous-priority (nth 6 row)
-                :new-priority (nth 6 row))))
-      '(active)))))
+          (or occurred-at (increamemo-time-now))))
+        (db-file (increamemo-domain--db-file)))
+    (let ((connection (increamemo-storage-open db-file)))
+      (unwind-protect
+          (increamemo-storage-with-transaction connection
+            (let* ((row (or (increamemo-domain--select-item-row connection item-id)
+                            (user-error "Increamemo: item %s does not exist"
+                                        item-id)))
+                   (state (nth 7 row)))
+              (unless (equal state "active")
+                (user-error
+                 "Increamemo: item %s does not allow action %s from %s"
+                 item-id "skipped" state))
+              (increamemo-domain--insert-history
+               connection
+               item-id
+               "skipped"
+               validated-occurred-at
+               state
+               state
+               (nth 5 row)
+               (nth 5 row)
+               (nth 6 row)
+               (nth 6 row))
+              (increamemo-domain--with-status
+               'skipped
+               (increamemo-domain--row-to-item row))))
+        (increamemo-storage-close connection)))))
 
 (defun increamemo-domain-record-open-failure
     (item-id error-message &optional occurred-at)

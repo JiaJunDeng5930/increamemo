@@ -184,9 +184,9 @@
        (equal
         (increamemo-test-support-select-row
          increamemo-db-file
-         "SELECT state, next_due_date FROM increamemo_items WHERE id = ?"
+         "SELECT state, next_due_date, version, updated_at FROM increamemo_items WHERE id = ?"
          (list (plist-get item :id)))
-        '("active" "2026-04-21")))
+        '("active" "2026-04-21" 0 "2026-04-21T08:00:00+00:00")))
       (should (= 1
                  (increamemo-test-support-count-rows
                   increamemo-db-file
