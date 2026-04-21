@@ -37,6 +37,25 @@
        "2026-04-21")
       "2026-04-25"))))
 
+(ert-deftest increamemo-policy-compute-next-due-date-passes-extended-context ()
+  "The policy adapter passes history summary and today to rich callbacks."
+  (let ((increamemo-reschedule-function
+         (lambda (item action history-summary today)
+           (should
+            (equal item (list :id 7 :custom-json "{\"weight\":1}")))
+           (should (eq action 'complete))
+           (should (equal history-summary '(:history-count 2)))
+           (should (equal today "2026-04-21"))
+           "2026-04-25")))
+    (should
+     (equal
+      (increamemo-policy-compute-next-due-date
+       (list :id 7 :custom-json "{\"weight\":1}")
+       'complete
+       '(:history-count 2)
+       "2026-04-21")
+      "2026-04-25"))))
+
 (ert-deftest increamemo-domain-complete-current-reschedules-and-writes-history ()
   "Completing a due item updates the due date and appends history."
   (increamemo-test-support-with-temp-db
@@ -147,6 +166,46 @@
                                          "IM[1/1]")))))
                   (when (buffer-live-p opened-buffer)
                     (kill-buffer opened-buffer)))))))))))
+
+(ert-deftest increamemo-domain-complete-current-aborts-when-version-check-fails ()
+  "Completion stops without writes when the guarded update does not apply."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-reschedule-function
+           (lambda (_item _action _history-summary _today) "2026-04-28")))
+      (let* ((item
+              (increamemo-domain-ensure-item
+               (list :type "file"
+                     :locator "/tmp/topic.md"
+                     :opener 'find-file
+                     :title-snapshot "topic.md")
+               10
+               "2026-04-21"
+               "2026-04-21T08:00:00+00:00"))
+             (original-execute (symbol-function 'increamemo-storage-execute)))
+        (cl-letf (((symbol-function 'increamemo-storage-execute)
+                   (lambda (connection sql &optional values)
+                     (if (string-match-p "\\`UPDATE increamemo_items" sql)
+                         nil
+                       (funcall original-execute connection sql values)))))
+          (should-error
+           (increamemo-domain-complete-current
+            (plist-get item :id)
+            "2026-04-21"
+            "2026-04-21T09:00:00+00:00")
+           :type 'user-error))
+        (should
+         (equal
+          (increamemo-test-support-select-row
+           increamemo-db-file
+           "SELECT next_due_date, version, last_reviewed_at FROM increamemo_items WHERE id = ?"
+           (list (plist-get item :id)))
+          '("2026-04-21" 0 nil)))
+        (should (= 1
+                   (increamemo-test-support-count-rows
+                    increamemo-db-file
+                    "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+                    (list (plist-get item :id)))))))))
 
 (provide 'increamemo-complete-test)
 ;;; increamemo-complete-test.el ends here

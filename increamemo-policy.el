@@ -37,13 +37,45 @@ The default policy schedules the next review for the following day."
                        t))
            (error nil)))))
 
+(defun increamemo-policy--invoke-reschedule-function
+    (item action history-summary today)
+  "Call `increamemo-reschedule-function' with supported context.
+
+Functions may accept either `(ITEM ACTION)' or
+`(ITEM ACTION HISTORY-SUMMARY TODAY)'."
+  (let* ((arity (func-arity increamemo-reschedule-function))
+         (minimum (car arity))
+         (maximum (cdr arity))
+         (supports-four
+          (or (eq maximum 'many)
+              (>= maximum 4)))
+         (supports-two
+          (and (not (eq maximum 'many))
+               (<= minimum 2)
+               (>= maximum 2))))
+    (cond
+     (supports-four
+      (funcall increamemo-reschedule-function
+               item
+               action
+               history-summary
+               today))
+     (supports-two
+      (funcall increamemo-reschedule-function item action))
+     (t
+      (user-error
+       (concat
+        "Increamemo: `increamemo-reschedule-function' must accept "
+        "2 or 4 arguments"))))))
+
 (defun increamemo-policy-compute-next-due-date
     (item action history-summary today)
   "Return the validated next due date for ITEM after ACTION.
 
 HISTORY-SUMMARY and TODAY are accepted to keep the adapter contract stable."
-  (ignore history-summary today)
-  (let ((candidate (funcall increamemo-reschedule-function item action)))
+  (let ((candidate
+         (increamemo-policy--invoke-reschedule-function
+          item action history-summary today)))
     (unless (increamemo-policy--valid-date-p candidate)
       (user-error "Increamemo: invalid reschedule date: %S" candidate))
     candidate))

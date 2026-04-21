@@ -125,6 +125,17 @@
      (list item-id))
     0)))
 
+(defun increamemo-domain--require-advanced-version
+    (connection item-id previous-version)
+  "Return ITEM-ID row after PREVIOUS-VERSION advances on CONNECTION.
+
+Signal `user-error' when the guarded write did not advance the row version."
+  (let ((row (increamemo-domain--select-item-row connection item-id)))
+    (unless (and row
+                 (= (nth 13 row) (1+ previous-version)))
+      (user-error "Increamemo: version conflict for item %s" item-id))
+    row))
+
 (defun increamemo-domain--find-live-duplicate-row (connection type locator)
   "Return the active or invalid row on CONNECTION for TYPE and LOCATOR."
   (car
@@ -187,8 +198,14 @@ ALLOWED-STATES defines which current states may apply ACTION."
                  item-id action state))
               (let* ((changes (funcall updater row))
                      (sql (plist-get changes :sql))
-                     (values (plist-get changes :values)))
+                     (values (plist-get changes :values))
+                     (updated-row nil))
                 (increamemo-storage-execute connection sql values)
+                (setq updated-row
+                      (increamemo-domain--require-advanced-version
+                       connection
+                       item-id
+                       (nth 13 row)))
                 (increamemo-domain--insert-history
                  connection
                  item-id
@@ -200,8 +217,7 @@ ALLOWED-STATES defines which current states may apply ACTION."
                  (plist-get changes :new-due-date)
                  (plist-get changes :previous-priority)
                  (plist-get changes :new-priority))
-                (increamemo-domain--row-to-item
-                 (increamemo-domain--select-item-row connection item-id)))))
+                (increamemo-domain--row-to-item updated-row))))
         (increamemo-storage-close connection)))))
 
 (defun increamemo-domain-ensure-item
@@ -348,26 +364,35 @@ When OCCURRED-AT is nil, use the current timestamp."
   (let ((validated-occurred-at
          (increamemo-domain--require-timestamp
           (or occurred-at (increamemo-time-now)))))
-    (increamemo-domain--update-item
-     item-id
-     validated-occurred-at
-     "archived"
-     (lambda (row)
-       (let ((version (nth 13 row))
-             (state (nth 7 row)))
-         (list :sql
-               (concat
-                "UPDATE increamemo_items "
-                "SET state = 'archived', updated_at = ?, version = version + 1 "
-                "WHERE id = ? AND version = ?")
-               :values (list validated-occurred-at item-id version)
-               :previous-state state
-               :new-state "archived"
-               :previous-due-date (nth 5 row)
-               :new-due-date (nth 5 row)
-               :previous-priority (nth 6 row)
-               :new-priority (nth 6 row))))
-     '(active invalid))))
+    (let* ((db-file (increamemo-domain--db-file))
+           (connection (increamemo-storage-open db-file)))
+      (unwind-protect
+          (let ((row (or (increamemo-domain--select-item-row connection item-id)
+                         (user-error "Increamemo: item %s does not exist"
+                                     item-id))))
+            (if (equal (nth 7 row) "archived")
+                (increamemo-domain--row-to-item row)
+              (increamemo-domain--update-item
+               item-id
+               validated-occurred-at
+               "archived"
+               (lambda (current-row)
+                 (let ((version (nth 13 current-row))
+                       (state (nth 7 current-row)))
+                   (list :sql
+                         (concat
+                          "UPDATE increamemo_items "
+                          "SET state = 'archived', updated_at = ?, version = version + 1 "
+                          "WHERE id = ? AND version = ?")
+                         :values (list validated-occurred-at item-id version)
+                         :previous-state state
+                         :new-state "archived"
+                         :previous-due-date (nth 5 current-row)
+                         :new-due-date (nth 5 current-row)
+                         :previous-priority (nth 6 current-row)
+                         :new-priority (nth 6 current-row))))
+               '(active invalid))))
+        (increamemo-storage-close connection)))))
 
 (defun increamemo-domain-defer-item (item-id new-due-date &optional occurred-at)
   "Update ITEM-ID with NEW-DUE-DATE and append a deferred history row.
@@ -595,6 +620,11 @@ When OCCURRED-AT is nil, use the current timestamp."
                        validated-occurred-at
                        item-id
                        (nth 13 row)))
+                (let ((updated-row
+                       (increamemo-domain--require-advanced-version
+                        connection
+                        item-id
+                        (nth 13 row))))
                 (increamemo-domain--insert-history
                  connection
                  item-id
@@ -606,13 +636,9 @@ When OCCURRED-AT is nil, use the current timestamp."
                  new-due-date
                  (nth 6 row)
                  (nth 6 row))
-                (list
-                 :status 'completed
-                 :item
-                 (increamemo-domain--row-to-item
-                  (increamemo-domain--select-item-row
-                   connection
-                   item-id)))))))
+                  (list
+                   :status 'completed
+                   :item (increamemo-domain--row-to-item updated-row)))))))
       (increamemo-storage-close connection))))
 
 (provide 'increamemo-domain)

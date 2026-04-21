@@ -186,5 +186,66 @@
                   "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'skipped'"
                   (list (plist-get item :id))))))))
 
+(ert-deftest increamemo-domain-archive-item-is-idempotent-for-archived-items ()
+  "Archiving an archived item returns the same archived state."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/archive.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (archived
+            (increamemo-domain-archive-item
+             (plist-get item :id)
+             "2026-04-21T09:00:00+00:00"))
+           (archived-again
+            (increamemo-domain-archive-item
+             (plist-get item :id)
+             "2026-04-21T10:00:00+00:00")))
+      (should (equal (plist-get archived :state) "archived"))
+      (should (equal (plist-get archived-again :state) "archived"))
+      (should (= 2
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+                  (list (plist-get item :id))))))))
+
+(ert-deftest increamemo-domain-update-priority-aborts-when-version-check-fails ()
+  "Version-guarded updates stop when the item row is not updated."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/conflict.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (original-execute (symbol-function 'increamemo-storage-execute)))
+      (cl-letf (((symbol-function 'increamemo-storage-execute)
+                 (lambda (connection sql &optional values)
+                   (if (string-match-p "\\`UPDATE increamemo_items" sql)
+                       nil
+                     (funcall original-execute connection sql values)))))
+        (should-error
+         (increamemo-domain-update-priority
+          (plist-get item :id)
+          5
+          "2026-04-21T09:00:00+00:00")
+         :type 'user-error))
+      (should
+       (equal
+        (increamemo-test-support-select-row
+         increamemo-db-file
+         "SELECT priority, version FROM increamemo_items WHERE id = ?"
+         (list (plist-get item :id)))
+        '(15 0)))
+      (should (= 1
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+                  (list (plist-get item :id))))))))
+
 (provide 'increamemo-domain-test)
 ;;; increamemo-domain-test.el ends here
