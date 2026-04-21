@@ -1,0 +1,47 @@
+;;; increamemo-static-test.el --- Static architecture tests -*- lexical-binding: t; -*-
+
+;;; Commentary:
+
+;; Regression tests for repository-wide architectural constraints.
+
+;;; Code:
+
+(require 'ert)
+(require 'increamemo-test-support)
+(require 'increamemo-work)
+
+(ert-deftest increamemo-static-sqlite-calls-stay-in-storage-layer ()
+  "SQLite calls stay inside storage and migration modules."
+  (let ((violations nil))
+    (dolist (file (increamemo-test-support-project-elisp-files))
+      (unless (member (file-name-nondirectory file)
+                      '("increamemo-storage.el" "increamemo-migration.el"))
+        (when (string-match-p
+               "sqlite-"
+               (increamemo-test-support-read-file file))
+          (push file violations))))
+    (should-not violations)))
+
+(ert-deftest increamemo-static-ekg-symbols-stay-in-ekg-backend ()
+  "EKG integration points stay inside the EKG backend implementation."
+  (let ((violations nil))
+    (dolist (file (increamemo-test-support-project-elisp-files))
+      (unless (equal (file-name-nondirectory file) "increamemo-backend-ekg.el")
+        (when (string-match-p
+               "[^[:alnum:]-]ekg-"
+               (concat " " (increamemo-test-support-read-file file)))
+          (push file violations))))
+    (should-not violations)))
+
+(ert-deftest increamemo-work-keymap-only-activates-in-work-mode ()
+  "Work commands are available only while work mode is enabled."
+  (with-temp-buffer
+    (should-not (key-binding (kbd "C-c , c")))
+    (increamemo-work-mode 1)
+    (should (eq (key-binding (kbd "C-c , c"))
+                #'increamemo-work-complete))
+    (increamemo-work-mode -1)
+    (should-not (key-binding (kbd "C-c , c")))))
+
+(provide 'increamemo-static-test)
+;;; increamemo-static-test.el ends here

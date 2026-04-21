@@ -9,6 +9,10 @@
 (require 'increamemo-config)
 (require 'increamemo-storage)
 
+(defconst increamemo-test-support--project-root
+  (file-name-directory (or load-file-name buffer-file-name default-directory))
+  "Project root directory used by test support.")
+
 (defmacro increamemo-test-support-with-temp-db (&rest body)
   "Run BODY with a temporary database file."
   (declare (indent 0) (debug t))
@@ -70,6 +74,16 @@
     (unwind-protect
         (car (increamemo-storage-select connection sql values))
       (increamemo-storage-close connection))))
+
+(defun increamemo-test-support-project-elisp-files ()
+  "Return the main project Emacs Lisp files."
+  (directory-files increamemo-test-support--project-root t "\\`increamemo.*\\.el\\'"))
+
+(defun increamemo-test-support-read-file (file)
+  "Return FILE contents as a string."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (buffer-string)))
 
 (provide 'increamemo-test-support)
 ;;; increamemo-test-support.el ends here
