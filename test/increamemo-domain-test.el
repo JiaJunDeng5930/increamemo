@@ -280,5 +280,49 @@
                   "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
                   (list (plist-get item :id))))))))
 
+(ert-deftest increamemo-domain-update-priority-rereads-when-item-was-deleted ()
+  "Priority updates re-read and surface deletion when the item vanished."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/deleted-conflict.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (item-id (plist-get item :id))
+           (original-guarded-update
+            (symbol-function 'increamemo-domain--execute-guarded-update)))
+      (cl-letf (((symbol-function 'increamemo-domain--execute-guarded-update)
+                 (lambda (connection sql values)
+                   (if (string-match-p "\\`UPDATE increamemo_items" sql)
+                       (progn
+                         (increamemo-storage-execute
+                         connection
+                          "DELETE FROM increamemo_items WHERE id = ?"
+                          (list item-id))
+                         0)
+                     (funcall original-guarded-update connection sql values)))))
+        (let ((err
+               (should-error
+                (increamemo-domain-update-priority
+                 item-id
+                 5
+                 "2026-04-21T09:00:00+00:00")
+                :type 'user-error)))
+          (should
+           (equal (error-message-string err)
+                  (format "Increamemo: item %s does not exist" item-id)))))
+      (should (= 1
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_items WHERE id = ?"
+                  (list item-id))))
+      (should (= 1
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+                  (list item-id)))))))
+
 (provide 'increamemo-domain-test)
 ;;; increamemo-domain-test.el ends here

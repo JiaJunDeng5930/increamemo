@@ -212,6 +212,20 @@ Return the number of rows changed by the update statement."
   (or (increamemo-storage-select-value connection "SELECT changes()")
       0))
 
+(defun increamemo-domain--adjudicate-guarded-update
+    (connection item-id action allowed-states)
+  "Re-read ITEM-ID on CONNECTION and adjudicate ACTION for ALLOWED-STATES."
+  (let ((current-row (increamemo-domain--select-item-row connection item-id)))
+    (cond
+     ((null current-row)
+      (user-error "Increamemo: item %s does not exist" item-id))
+     ((not (memq (intern (nth 7 current-row)) allowed-states))
+      (user-error
+       "Increamemo: item %s does not allow action %s from %s"
+       item-id action (nth 7 current-row)))
+     (t
+      (user-error "Increamemo: version conflict for item %s" item-id)))))
+
 (defun increamemo-domain--find-live-duplicate-row (connection type locator)
   "Return the active or invalid row on CONNECTION for TYPE and LOCATOR."
   (car
@@ -281,8 +295,11 @@ ALLOWED-STATES defines which current states may apply ACTION."
                             connection
                             sql
                             values))
-                  (user-error "Increamemo: version conflict for item %s"
-                              item-id))
+                  (increamemo-domain--adjudicate-guarded-update
+                   connection
+                   item-id
+                   action
+                   allowed-states))
                 (setq updated-row
                       (increamemo-domain--require-advanced-version
                        connection
