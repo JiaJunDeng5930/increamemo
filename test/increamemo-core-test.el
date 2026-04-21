@@ -67,6 +67,39 @@
   (let ((increamemo-db-file nil))
     (should-error (increamemo-work-start) :type 'user-error)))
 
+(ert-deftest increamemo-board-add-item-requires-initialized-schema-before-prompting ()
+  "Board item creation stops before prompting when schema is missing."
+  (increamemo-test-support-with-temp-db
+    (let ((prompted nil))
+      (cl-letf (((symbol-function 'read-string)
+                 (lambda (&rest _args)
+                   (setq prompted t)
+                   "ignored"))
+                ((symbol-function 'read-number)
+                 (lambda (&rest _args)
+                   (setq prompted t)
+                   1)))
+        (should-error (increamemo-board-add-item) :type 'user-error)
+        (should-not prompted)))))
+
+(ert-deftest increamemo-board-filter-commands-require-initialized-schema ()
+  "Board filters keep state unchanged when schema is missing."
+  (increamemo-test-support-with-temp-db
+    (with-temp-buffer
+      (increamemo-board-mode)
+      (setq-local increamemo-board--filter 'planned)
+      (should-error (increamemo-board-show-due) :type 'user-error)
+      (should (eq increamemo-board--filter 'planned))
+      (should-error (increamemo-board-show-invalid) :type 'user-error)
+      (should (eq increamemo-board--filter 'planned))
+      (should-error (increamemo-board-show-all) :type 'user-error)
+      (should (eq increamemo-board--filter 'planned)))))
+
+(ert-deftest increamemo-work-start-requires-initialized-schema ()
+  "Work runtime start stops with user-error when schema is missing."
+  (increamemo-test-support-with-temp-db
+    (should-error (increamemo-work-start) :type 'user-error)))
+
 (ert-deftest increamemo-public-commands-require-initialized-schema ()
   "Commands that rely on persisted state stop before running on an uninitialized DB."
   (increamemo-test-support-with-temp-db
