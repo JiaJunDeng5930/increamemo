@@ -67,5 +67,19 @@
   (let ((increamemo-db-file nil))
     (should-error (increamemo-work-start) :type 'user-error)))
 
+(ert-deftest increamemo-public-commands-require-initialized-schema ()
+  "Commands that rely on persisted state stop before running on an uninitialized DB."
+  (increamemo-test-support-with-temp-db
+    (let ((prompted nil))
+      (increamemo-test-support-with-file-buffer "notes/topic.md" "# title"
+        (cl-letf (((symbol-function 'read-number)
+                   (lambda (&rest _args)
+                     (setq prompted t)
+                     10)))
+          (should-error (increamemo-add-current) :type 'user-error)
+          (should-not prompted)))
+      (should-error (increamemo-work) :type 'user-error)
+      (should-error (increamemo-board) :type 'user-error))))
+
 (provide 'increamemo-core-test)
 ;;; increamemo-core-test.el ends here

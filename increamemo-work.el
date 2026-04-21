@@ -10,6 +10,7 @@
 (require 'increamemo-config)
 (require 'increamemo-domain)
 (require 'increamemo-failure)
+(require 'increamemo-migration)
 (require 'increamemo-opener)
 (require 'increamemo-time)
 
@@ -161,6 +162,7 @@ INPUT accepts either an ISO date or a positive day offset."
 (defun increamemo-work-start ()
   "Start a work session."
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (let* ((today (increamemo-time-today))
          (session
           (make-increamemo-session
@@ -177,6 +179,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Complete the current item."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (let* ((item-id (increamemo-work--require-current-item-id))
          (result
           (increamemo-domain-complete-current
@@ -193,6 +196,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Archive the current item."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (increamemo-domain-archive-item
    (increamemo-work--require-current-item-id)
    (increamemo-time-now))
@@ -204,6 +208,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Defer the current item."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (let* ((item-id (increamemo-work--require-current-item-id))
          (raw-input (read-string "Defer to date or +days: "))
          (new-due-date
@@ -219,6 +224,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Skip the current item."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (let ((item-id (increamemo-work--require-current-item-id)))
     (increamemo-domain-skip-item item-id (increamemo-time-now))
     (cl-pushnew item-id
@@ -231,6 +237,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Adjust the current item priority."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (increamemo-domain-update-priority
    (increamemo-work--require-current-item-id)
    (read-number "Priority: ")
@@ -241,6 +248,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Quit the current work session."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (when (and increamemo-work--session
              (equal increamemo-work--session-id
                     (increamemo-session-id increamemo-work--session)))

@@ -33,6 +33,7 @@
   "Add the current note buffer to increamemo."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (let* ((priority (read-number "Priority: "))
          (source-ref (increamemo-backend-identify-current (current-buffer)))
          (item (increamemo-domain-ensure-item
@@ -48,6 +49,7 @@
   "Start an increamemo work session."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (increamemo-work-start))
 
 ;;;###autoload
@@ -55,6 +57,7 @@
   "Open the increamemo board."
   (interactive)
   (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (increamemo-board-open))
 
 (provide 'increamemo)

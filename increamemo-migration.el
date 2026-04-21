@@ -126,10 +126,32 @@
                  (string-to-number increamemo-migration-schema-version))
               (increamemo-migration--upgrade-schema connection version))
              (t
-              (user-error
+             (user-error
                "Increamemo: schema version %s is unsupported"
                version))))
         (increamemo-storage-close connection)))))
+
+(defun increamemo-migration-require-initialized ()
+  "Require the database schema to be initialized and current."
+  (let* ((db-file (plist-get (increamemo-config-require-ready) :db-file))
+         (connection (increamemo-storage-open db-file)))
+    (unwind-protect
+        (let ((version (increamemo-migration--schema-version connection)))
+          (cond
+           ((null version)
+            (user-error
+             "Increamemo: database is not initialized; run `increamemo-init'"))
+           ((string= version increamemo-migration-schema-version)
+            t)
+           ((< (string-to-number version)
+               (string-to-number increamemo-migration-schema-version))
+            (user-error
+             "Increamemo: database schema is outdated; run `increamemo-init'"))
+           (t
+            (user-error
+             "Increamemo: schema version %s is unsupported"
+             version))))
+      (increamemo-storage-close connection))))
 
 (provide 'increamemo-migration)
 ;;; increamemo-migration.el ends here
