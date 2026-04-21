@@ -271,6 +271,29 @@
       (should (eq (plist-get result :status) 'updated))
       (should (equal (plist-get result :next-due-date) "2026-04-25")))))
 
+(ert-deftest increamemo-domain-update-due-date-allows-archived-items ()
+  "Updating due date preserves archived state for archived items."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/archived-due.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (_archived
+            (increamemo-domain-archive-item
+             (plist-get item :id)
+             "2026-04-21T08:30:00+00:00"))
+           (result
+            (increamemo-domain-update-due-date
+             (plist-get item :id)
+             "2026-04-25"
+             "2026-04-21T09:00:00+00:00")))
+      (should (eq (plist-get result :status) 'updated))
+      (should (equal (plist-get result :state) "archived"))
+      (should (equal (plist-get result :next-due-date) "2026-04-25")))))
+
 (ert-deftest increamemo-domain-update-priority-aborts-when-version-check-fails ()
   "Version-guarded updates stop when the item row is not updated."
   (increamemo-test-support-with-temp-db

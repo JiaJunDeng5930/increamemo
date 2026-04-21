@@ -243,14 +243,44 @@
                   (kill-buffer buffer)))))
         (delete-directory root t)))
     (should
+      (equal
+       (increamemo-test-support-select-row
+        increamemo-db-file
+        (concat
+         "SELECT next_due_date, priority, state "
+         "FROM increamemo_items WHERE title_snapshot = ?")
+       '("planned.md"))
+      '("2026-04-19" 5 "active")))))
+
+(ert-deftest increamemo-board-allows-updating-archived-item-due-date-in-all-view ()
+  "Archived rows can update due date from the all-items board view."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21"))
+                      ((symbol-function 'increamemo-time-now)
+                       (lambda () "2026-04-21T09:00:00+00:00")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-show-all)
+                      (increamemo-board-test--goto-entry "archived.md")
+                      (cl-letf (((symbol-function 'read-string)
+                                 (lambda (&rest _args) "2026-04-30")))
+                        (increamemo-board-update-current-due-date)))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))
+    (should
      (equal
       (increamemo-test-support-select-row
        increamemo-db-file
-       (concat
-        "SELECT next_due_date, priority, state "
-        "FROM increamemo_items WHERE title_snapshot = ?")
-       '("planned.md"))
-      '("2026-04-19" 5 "active")))))
+       "SELECT next_due_date, state FROM increamemo_items WHERE title_snapshot = ?"
+       '("archived.md"))
+      '("2026-04-30" "archived")))))
 
 (ert-deftest increamemo-board-add-item-prompts-and-refreshes ()
   "Adding an item from the board persists it and refreshes the listing."

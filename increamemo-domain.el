@@ -537,7 +537,7 @@ When OCCURRED-AT is nil, use the current timestamp."
                 :new-due-date validated-due-date
                 :previous-priority (nth 6 row)
                 :new-priority (nth 6 row))))
-      '(active)))))
+      '(active invalid archived)))))
 
 (defun increamemo-domain-update-priority
     (item-id priority &optional occurred-at)
