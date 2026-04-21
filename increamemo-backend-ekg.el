@@ -37,6 +37,14 @@
                 :opener 'increamemo-ekg-open-note
                 :title-snapshot (buffer-name target-buffer)))))))
 
+(defun increamemo-ekg-backend-build-source-ref (type locator &optional opener)
+  "Return an EKG source ref for TYPE, LOCATOR, and optional OPENER."
+  (when (string= type "ekg")
+    (list :type "ekg"
+          :locator locator
+          :opener (or opener 'increamemo-ekg-open-note)
+          :title-snapshot locator)))
+
 (defun increamemo-ekg-open-note (locator)
   "Open the EKG note identified by LOCATOR."
   (increamemo-ekg-backend--require-function 'ekg-get-note-with-id)

@@ -288,26 +288,28 @@
     (increamemo-init)
     (let* ((root (make-temp-file "increamemo-board-" t))
            (manual-path (increamemo-board-test--write-note root "notes/manual.md"))
-           (answers (list "file" manual-path "find-file" "2026-04-23")))
+           (manual-relative-path "notes/manual.md")
+           (answers (list "file" manual-relative-path "" "2026-04-23")))
       (unwind-protect
-          (cl-letf (((symbol-function 'read-string)
-                     (lambda (&rest _args)
-                       (prog1 (car answers)
-                         (setq answers (cdr answers)))))
-                    ((symbol-function 'read-number)
-                     (lambda (&rest _args) 15))
-                    ((symbol-function 'increamemo-time-today)
-                     (lambda () "2026-04-21"))
-                    ((symbol-function 'increamemo-time-now)
-                     (lambda () "2026-04-21T09:00:00+00:00")))
-            (let ((buffer (increamemo-board-open)))
-              (unwind-protect
-                  (with-current-buffer buffer
-                    (increamemo-board-add-item)
-                    (should (equal (increamemo-board-test--entry-labels
-                                    tabulated-list-entries)
-                                   '("manual.md"))))
-                (kill-buffer buffer))))
+          (let ((default-directory root))
+            (cl-letf (((symbol-function 'read-string)
+                       (lambda (&rest _args)
+                         (prog1 (car answers)
+                           (setq answers (cdr answers)))))
+                      ((symbol-function 'read-number)
+                       (lambda (&rest _args) 15))
+                      ((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21"))
+                      ((symbol-function 'increamemo-time-now)
+                       (lambda () "2026-04-21T09:00:00+00:00")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-add-item)
+                      (should (equal (increamemo-board-test--entry-labels
+                                      tabulated-list-entries)
+                                     '("manual.md"))))
+                  (kill-buffer buffer)))))
         (delete-directory root t))
       (should
        (equal

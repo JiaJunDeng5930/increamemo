@@ -67,5 +67,13 @@
      (increamemo-ekg-open-note "42")
      :type 'user-error)))
 
+(ert-deftest increamemo-ekg-backend-builds-manual-source-ref ()
+  "The EKG backend provides default opener and title for manual items."
+  (let ((source-ref (increamemo-ekg-backend-build-source-ref "ekg" "42")))
+    (should (equal (plist-get source-ref :type) "ekg"))
+    (should (equal (plist-get source-ref :locator) "42"))
+    (should (eq (plist-get source-ref :opener) 'increamemo-ekg-open-note))
+    (should (equal (plist-get source-ref :title-snapshot) "42"))))
+
 (provide 'increamemo-backend-ekg-test)
 ;;; increamemo-backend-ekg-test.el ends here

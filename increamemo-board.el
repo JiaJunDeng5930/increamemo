@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'increamemo-backend)
 (require 'increamemo-config)
 (require 'increamemo-domain)
 (require 'increamemo-failure)
@@ -97,18 +98,6 @@
            nil)
        (signal (car err) (cdr err))))))
 
-(defun increamemo-board--normalize-locator (type locator)
-  "Return a normalized LOCATOR for TYPE."
-  (if (string= type "file")
-      (expand-file-name locator)
-    locator))
-
-(defun increamemo-board--title-snapshot (type locator)
-  "Return a title snapshot for TYPE and LOCATOR."
-  (if (string= type "file")
-      (file-name-nondirectory locator)
-    locator))
-
 (defun increamemo-board-refresh ()
   "Refresh the board entries for the current filter."
   (interactive)
@@ -158,16 +147,26 @@
   (interactive)
   (increamemo-config-require-ready)
   (let* ((type (read-string "Type: "))
-         (locator-input (read-string "Locator: "))
-         (locator (increamemo-board--normalize-locator type locator-input))
-         (opener (read-string "Opener: "))
+         (locator (read-string "Locator: "))
+         (draft-source-ref
+          (increamemo-backend-build-source-ref type locator))
+         (default-opener
+          (let ((value (plist-get draft-source-ref :opener)))
+            (if (symbolp value)
+                (symbol-name value)
+              value)))
+         (opener-input (read-string "Opener: " nil nil default-opener))
+         (source-ref
+          (increamemo-backend-build-source-ref
+           type
+           locator
+           (if (> (length opener-input) 0)
+               opener-input
+             default-opener)))
          (priority (read-number "Priority: "))
          (due-date (read-string "Due date: ")))
     (increamemo-domain-ensure-item
-     (list :type type
-           :locator locator
-           :opener opener
-           :title-snapshot (increamemo-board--title-snapshot type locator))
+     source-ref
      priority
      due-date
      (increamemo-time-now))

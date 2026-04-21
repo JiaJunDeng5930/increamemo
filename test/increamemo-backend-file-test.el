@@ -80,5 +80,27 @@
        (increamemo-backend-identify-current (current-buffer))
        :type 'user-error))))
 
+(ert-deftest increamemo-backend-build-source-ref-normalizes-manual-file-entry ()
+  "The backend registry builds file source refs for manual entry."
+  (let ((increamemo-supported-file-formats '("md"))
+        (increamemo-file-openers '(("md" . find-file))))
+    (let* ((temp-dir (make-temp-file "increamemo-backend-file-manual-" t))
+           (default-directory temp-dir)
+           (relative-path "notes/manual.md")
+           (absolute-path (expand-file-name relative-path temp-dir)))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory absolute-path) t)
+            (with-temp-file absolute-path
+              (insert "# manual"))
+            (let ((source-ref
+                   (increamemo-backend-build-source-ref "file" relative-path)))
+              (should (equal (plist-get source-ref :type) "file"))
+              (should (equal (plist-get source-ref :locator) absolute-path))
+              (should (eq (plist-get source-ref :opener) 'find-file))
+              (should (equal (plist-get source-ref :title-snapshot)
+                             "manual.md"))))
+        (delete-directory temp-dir t)))))
+
 (provide 'increamemo-backend-file-test)
 ;;; increamemo-backend-file-test.el ends here

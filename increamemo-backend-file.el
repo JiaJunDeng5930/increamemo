@@ -48,6 +48,28 @@
                 :opener opener
                 :title-snapshot (file-name-nondirectory locator)))))))
 
+(defun increamemo-file-backend-build-source-ref (type locator &optional opener)
+  "Return a file source ref for TYPE, LOCATOR, and optional OPENER."
+  (when (string= type "file")
+    (let* ((normalized-locator (increamemo-file-backend--normalize-path locator))
+           (extension (increamemo-file-backend--file-extension normalized-locator)))
+      (unless (file-exists-p normalized-locator)
+        (user-error "Increamemo: file does not exist: %s" normalized-locator))
+      (unless (increamemo-file-backend--supported-format-p extension)
+        (user-error "Increamemo: unsupported file format: %s" extension))
+      (let ((resolved-opener (or opener
+                                 (increamemo-file-backend--resolve-opener
+                                  extension))))
+        (unless resolved-opener
+          (user-error
+           "Increamemo: no opener configured for extension: %s"
+           extension))
+        (list :type "file"
+              :locator normalized-locator
+              :opener resolved-opener
+              :title-snapshot
+              (file-name-nondirectory normalized-locator))))))
+
 (defun increamemo-file-backend-recognize-current (&optional buffer)
   "Return a source ref for BUFFER when it is a supported file buffer."
   (increamemo-file-backend--build-source-ref (or buffer (current-buffer))))

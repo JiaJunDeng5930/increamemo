@@ -17,6 +17,13 @@
     ('increamemo-ekg-backend #'increamemo-ekg-backend-recognize-current)
     (_ (user-error "Increamemo: unknown backend: %S" backend))))
 
+(defun increamemo-backend--builder (backend)
+  "Return the manual source-ref builder for BACKEND."
+  (pcase backend
+    ('increamemo-file-backend #'increamemo-file-backend-build-source-ref)
+    ('increamemo-ekg-backend #'increamemo-ekg-backend-build-source-ref)
+    (_ (user-error "Increamemo: unknown backend: %S" backend))))
+
 (defun increamemo-backend-identify-current (&optional buffer)
   "Return a source ref for BUFFER using the configured backends."
   (let ((target-buffer (or buffer (current-buffer)))
@@ -28,6 +35,19 @@
                        target-buffer))))
     (or source-ref
         (user-error "Increamemo: no backend recognized the current buffer"))))
+
+(defun increamemo-backend-build-source-ref (type locator &optional opener)
+  "Return a source ref for TYPE, LOCATOR, and optional OPENER."
+  (let ((source-ref nil))
+    (dolist (backend increamemo-backends)
+      (unless source-ref
+        (setq source-ref
+              (funcall (increamemo-backend--builder backend)
+                       type
+                       locator
+                       opener))))
+    (or source-ref
+        (user-error "Increamemo: no backend recognized type: %s" type))))
 
 (provide 'increamemo-backend)
 ;;; increamemo-backend.el ends here
