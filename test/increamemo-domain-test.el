@@ -122,18 +122,24 @@
              (increamemo-domain-test--source-ref "/tmp/notes/priority.md")
              30
              "2026-04-21"
-             "2026-04-21T08:02:00+00:00")))
-      (increamemo-domain-archive-item
-       (plist-get archived-item :id)
-       "2026-04-21T09:00:00+00:00")
-      (increamemo-domain-defer-item
-       (plist-get deferred-item :id)
-       "2026-04-25"
-       "2026-04-21T09:01:00+00:00")
-      (increamemo-domain-update-priority
-       (plist-get reprioritized-item :id)
-       5
-       "2026-04-21T09:02:00+00:00")
+             "2026-04-21T08:02:00+00:00"))
+           (archived-result
+            (increamemo-domain-archive-item
+             (plist-get archived-item :id)
+             "2026-04-21T09:00:00+00:00"))
+           (deferred-result
+            (increamemo-domain-defer-item
+             (plist-get deferred-item :id)
+             "2026-04-25"
+             "2026-04-21T09:01:00+00:00"))
+           (updated-result
+            (increamemo-domain-update-priority
+             (plist-get reprioritized-item :id)
+             5
+             "2026-04-21T09:02:00+00:00")))
+      (should (eq (plist-get archived-result :status) 'archived))
+      (should (eq (plist-get deferred-result :status) 'deferred))
+      (should (eq (plist-get updated-result :status) 'updated))
       (let ((archived-row
              (increamemo-test-support-select-row
               increamemo-db-file
@@ -171,6 +177,7 @@
             (increamemo-domain-skip-item
              (plist-get item :id)
              "2026-04-21T09:00:00+00:00")))
+      (should (eq (plist-get skipped-item :status) 'skipped))
       (should (equal (plist-get skipped-item :state) "active"))
       (should (equal (plist-get skipped-item :next-due-date) "2026-04-21"))
       (should
@@ -236,6 +243,8 @@
             (increamemo-domain-archive-item
              (plist-get item :id)
              "2026-04-21T10:00:00+00:00")))
+      (should (eq (plist-get archived :status) 'archived))
+      (should (eq (plist-get archived-again :status) 'archived))
       (should (equal (plist-get archived :state) "archived"))
       (should (equal (plist-get archived-again :state) "archived"))
       (should (= 2
@@ -243,6 +252,24 @@
                   increamemo-db-file
                   "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
                   (list (plist-get item :id))))))))
+
+(ert-deftest increamemo-domain-update-due-date-returns-updated-status ()
+  "Updating due date returns the documented updated status."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/due-status.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (result
+            (increamemo-domain-update-due-date
+             (plist-get item :id)
+             "2026-04-25"
+             "2026-04-21T09:00:00+00:00")))
+      (should (eq (plist-get result :status) 'updated))
+      (should (equal (plist-get result :next-due-date) "2026-04-25")))))
 
 (ert-deftest increamemo-domain-update-priority-aborts-when-version-check-fails ()
   "Version-guarded updates stop when the item row is not updated."

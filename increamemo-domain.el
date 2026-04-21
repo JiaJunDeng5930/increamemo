@@ -124,6 +124,10 @@ When DUE-DATE is non-nil, validate and return it."
           :custom-json (nth 12 row)
           :version (nth 13 row))))
 
+(defun increamemo-domain--with-status (status item)
+  "Return ITEM annotated with STATUS."
+  (append (list :status status) item))
+
 (defun increamemo-domain--select-item-row (connection item-id)
   "Return the item row for ITEM-ID on CONNECTION."
   (car
@@ -475,27 +479,31 @@ When OCCURRED-AT is nil, use the current timestamp."
                          (user-error "Increamemo: item %s does not exist"
                                      item-id))))
             (if (equal (nth 7 row) "archived")
-                (increamemo-domain--row-to-item row)
-              (increamemo-domain--update-item
-               item-id
-               validated-occurred-at
-               "archived"
-               (lambda (current-row)
-                 (let ((version (nth 13 current-row))
-                       (state (nth 7 current-row)))
-                   (list :sql
-                         (concat
-                          "UPDATE increamemo_items "
-                          "SET state = 'archived', updated_at = ?, version = version + 1 "
-                          "WHERE id = ? AND version = ?")
-                         :values (list validated-occurred-at item-id version)
-                         :previous-state state
-                         :new-state "archived"
-                         :previous-due-date (nth 5 current-row)
-                         :new-due-date (nth 5 current-row)
-                         :previous-priority (nth 6 current-row)
-                         :new-priority (nth 6 current-row))))
-               '(active invalid))))
+                (increamemo-domain--with-status
+                 'archived
+                 (increamemo-domain--row-to-item row))
+              (increamemo-domain--with-status
+               'archived
+               (increamemo-domain--update-item
+                item-id
+                validated-occurred-at
+                "archived"
+                (lambda (current-row)
+                  (let ((version (nth 13 current-row))
+                        (state (nth 7 current-row)))
+                    (list :sql
+                          (concat
+                           "UPDATE increamemo_items "
+                           "SET state = 'archived', updated_at = ?, version = version + 1 "
+                           "WHERE id = ? AND version = ?")
+                          :values (list validated-occurred-at item-id version)
+                          :previous-state state
+                          :new-state "archived"
+                          :previous-due-date (nth 5 current-row)
+                          :new-due-date (nth 5 current-row)
+                          :previous-priority (nth 6 current-row)
+                          :new-priority (nth 6 current-row))))
+                '(active invalid)))))
         (increamemo-storage-close connection)))))
 
 (defun increamemo-domain-defer-item (item-id new-due-date &optional occurred-at)
@@ -506,28 +514,30 @@ When OCCURRED-AT is nil, use the current timestamp."
         (validated-occurred-at
          (increamemo-domain--require-timestamp
           (or occurred-at (increamemo-time-now)))))
-    (increamemo-domain--update-item
-     item-id
-     validated-occurred-at
-     "deferred"
-     (lambda (row)
-       (let ((version (nth 13 row)))
-         (list :sql
-               (concat
-                "UPDATE increamemo_items "
-                "SET next_due_date = ?, updated_at = ?, version = version + 1 "
-                "WHERE id = ? AND version = ?")
-               :values (list validated-due-date
-                             validated-occurred-at
-                             item-id
-                             version)
-               :previous-state (nth 7 row)
-               :new-state (nth 7 row)
-               :previous-due-date (nth 5 row)
-               :new-due-date validated-due-date
-               :previous-priority (nth 6 row)
-               :new-priority (nth 6 row))))
-     '(active))))
+    (increamemo-domain--with-status
+     'deferred
+     (increamemo-domain--update-item
+      item-id
+      validated-occurred-at
+      "deferred"
+      (lambda (row)
+        (let ((version (nth 13 row)))
+          (list :sql
+                (concat
+                 "UPDATE increamemo_items "
+                 "SET next_due_date = ?, updated_at = ?, version = version + 1 "
+                 "WHERE id = ? AND version = ?")
+                :values (list validated-due-date
+                              validated-occurred-at
+                              item-id
+                              version)
+                :previous-state (nth 7 row)
+                :new-state (nth 7 row)
+                :previous-due-date (nth 5 row)
+                :new-due-date validated-due-date
+                :previous-priority (nth 6 row)
+                :new-priority (nth 6 row))))
+      '(active)))))
 
 (defun increamemo-domain-update-priority
     (item-id priority &optional occurred-at)
@@ -538,35 +548,39 @@ When OCCURRED-AT is nil, use the current timestamp."
         (validated-occurred-at
          (increamemo-domain--require-timestamp
           (or occurred-at (increamemo-time-now)))))
-    (increamemo-domain--update-item
-     item-id
-     validated-occurred-at
-     "priority_changed"
-     (lambda (row)
-       (let ((version (nth 13 row)))
-         (list :sql
-               (concat
-                "UPDATE increamemo_items "
-                "SET priority = ?, updated_at = ?, version = version + 1 "
-                "WHERE id = ? AND version = ?")
-               :values (list validated-priority
-                             validated-occurred-at
-                             item-id
-                             version)
-               :previous-state (nth 7 row)
-               :new-state (nth 7 row)
-               :previous-due-date (nth 5 row)
-               :new-due-date (nth 5 row)
-               :previous-priority (nth 6 row)
-               :new-priority validated-priority)))
-     '(active invalid archived))))
+    (increamemo-domain--with-status
+     'updated
+     (increamemo-domain--update-item
+      item-id
+      validated-occurred-at
+      "priority_changed"
+      (lambda (row)
+        (let ((version (nth 13 row)))
+          (list :sql
+                (concat
+                 "UPDATE increamemo_items "
+                 "SET priority = ?, updated_at = ?, version = version + 1 "
+                 "WHERE id = ? AND version = ?")
+                :values (list validated-priority
+                              validated-occurred-at
+                              item-id
+                              version)
+                :previous-state (nth 7 row)
+                :new-state (nth 7 row)
+                :previous-due-date (nth 5 row)
+                :new-due-date (nth 5 row)
+                :previous-priority (nth 6 row)
+                :new-priority validated-priority)))
+      '(active invalid archived)))))
 
 (defun increamemo-domain-update-due-date
     (item-id due-date &optional occurred-at)
   "Update ITEM-ID with DUE-DATE.
 
 When OCCURRED-AT is nil, use the current timestamp."
-  (increamemo-domain-defer-item item-id due-date occurred-at))
+  (increamemo-domain--with-status
+   'updated
+   (increamemo-domain-defer-item item-id due-date occurred-at)))
 
 (defun increamemo-domain-skip-item (item-id &optional occurred-at)
   "Record a skip action for ITEM-ID without changing its schedule.
@@ -575,25 +589,27 @@ When OCCURRED-AT is nil, use the current timestamp."
   (let ((validated-occurred-at
          (increamemo-domain--require-timestamp
           (or occurred-at (increamemo-time-now)))))
-    (increamemo-domain--update-item
-     item-id
-     validated-occurred-at
-     "skipped"
-     (lambda (row)
-       (let ((version (nth 13 row)))
-         (list :sql
-               (concat
-                "UPDATE increamemo_items "
-                "SET updated_at = ?, version = version + 1 "
-                "WHERE id = ? AND version = ?")
-               :values (list validated-occurred-at item-id version)
-               :previous-state (nth 7 row)
-               :new-state (nth 7 row)
-               :previous-due-date (nth 5 row)
-               :new-due-date (nth 5 row)
-               :previous-priority (nth 6 row)
-               :new-priority (nth 6 row))))
-     '(active))))
+    (increamemo-domain--with-status
+     'skipped
+     (increamemo-domain--update-item
+      item-id
+      validated-occurred-at
+      "skipped"
+      (lambda (row)
+        (let ((version (nth 13 row)))
+          (list :sql
+                (concat
+                 "UPDATE increamemo_items "
+                 "SET updated_at = ?, version = version + 1 "
+                 "WHERE id = ? AND version = ?")
+                :values (list validated-occurred-at item-id version)
+                :previous-state (nth 7 row)
+                :new-state (nth 7 row)
+                :previous-due-date (nth 5 row)
+                :new-due-date (nth 5 row)
+                :previous-priority (nth 6 row)
+                :new-priority (nth 6 row))))
+      '(active)))))
 
 (defun increamemo-domain-record-open-failure
     (item-id error-message &optional occurred-at)
@@ -634,29 +650,31 @@ When OCCURRED-AT is nil, use the current timestamp."
   (let ((validated-occurred-at
          (increamemo-domain--require-timestamp
           (or occurred-at (increamemo-time-now)))))
-    (increamemo-domain--update-item
-     item-id
-     validated-occurred-at
-     "open_failed"
-     (lambda (row)
-       (let ((version (nth 13 row)))
-         (list :sql
-               (concat
-                "UPDATE increamemo_items "
-                "SET state = 'invalid', last_error = ?, "
-                "updated_at = ?, version = version + 1 "
-                "WHERE id = ? AND version = ?")
-               :values (list error-message
-                             validated-occurred-at
-                             item-id
-                             version)
-               :previous-state (nth 7 row)
-               :new-state "invalid"
-               :previous-due-date (nth 5 row)
-               :new-due-date (nth 5 row)
-               :previous-priority (nth 6 row)
-               :new-priority (nth 6 row))))
-     '(active invalid))))
+    (increamemo-domain--with-status
+     'invalidated
+     (increamemo-domain--update-item
+      item-id
+      validated-occurred-at
+      "open_failed"
+      (lambda (row)
+        (let ((version (nth 13 row)))
+          (list :sql
+                (concat
+                 "UPDATE increamemo_items "
+                 "SET state = 'invalid', last_error = ?, "
+                 "updated_at = ?, version = version + 1 "
+                 "WHERE id = ? AND version = ?")
+                :values (list error-message
+                              validated-occurred-at
+                              item-id
+                              version)
+                :previous-state (nth 7 row)
+                :new-state "invalid"
+                :previous-due-date (nth 5 row)
+                :new-due-date (nth 5 row)
+                :previous-priority (nth 6 row)
+                :new-priority (nth 6 row))))
+      '(active invalid)))))
 
 (defun increamemo-domain-delete-item (item-id &optional occurred-at)
   "Delete ITEM-ID from the schedule.
