@@ -38,5 +38,19 @@
          '("schema-version"))
       (increamemo-storage-close connection))))
 
+(defun increamemo-test-support-count-rows (db-file sql &optional values)
+  "Return the count from SQL on DB-FILE with VALUES."
+  (let ((connection (increamemo-storage-open db-file)))
+    (unwind-protect
+        (increamemo-storage-select-value connection sql values)
+      (increamemo-storage-close connection))))
+
+(defun increamemo-test-support-select-row (db-file sql &optional values)
+  "Return the first row from SQL on DB-FILE with VALUES."
+  (let ((connection (increamemo-storage-open db-file)))
+    (unwind-protect
+        (car (increamemo-storage-select connection sql values))
+      (increamemo-storage-close connection))))
+
 (provide 'increamemo-test-support)
 ;;; increamemo-test-support.el ends here
