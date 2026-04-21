@@ -38,7 +38,12 @@
   :type '(choice (const keep) (const archive) (const delete))
   :group 'increamemo)
 
-(defcustom increamemo-mode-line-format-function #'identity
+(defun increamemo-default-mode-line-format (handled remaining)
+  "Render HANDLED and REMAINING counts for the mode line."
+  (format "IM[%d/%d]" handled remaining))
+
+(defcustom increamemo-mode-line-format-function
+  #'increamemo-default-mode-line-format
   "Function used to render the work session mode line."
   :type 'function
   :group 'increamemo)
@@ -61,11 +66,23 @@
         :mode-line-format-function increamemo-mode-line-format-function
         :backends increamemo-backends))
 
+(defun increamemo-config--valid-invalid-opener-policy-p (policy)
+  "Return non-nil when POLICY is a supported invalid opener policy."
+  (memq policy '(keep archive delete)))
+
 (defun increamemo-config-require-ready ()
   "Return a configuration snapshot or raise `user-error'."
   (unless (and (stringp increamemo-db-file)
                (> (length increamemo-db-file) 0))
     (user-error "Increamemo: `increamemo-db-file' is not configured"))
+  (unless
+      (increamemo-config--valid-invalid-opener-policy-p
+       increamemo-invalid-opener-policy)
+    (user-error "Increamemo: invalid invalid opener policy: %S"
+                increamemo-invalid-opener-policy))
+  (unless (functionp increamemo-mode-line-format-function)
+    (user-error "Increamemo: invalid mode line format function: %S"
+                increamemo-mode-line-format-function))
   (increamemo-config-snapshot))
 
 (provide 'increamemo-config)

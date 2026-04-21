@@ -6,13 +6,13 @@
 
 ;;; Code:
 
-(defun increamemo-time-today ()
-  "Return today's date in ISO format."
-  (format-time-string "%F"))
+(defun increamemo-time-today (&optional time-value)
+  "Return TIME-VALUE as an ISO date, or today's date when omitted."
+  (format-time-string "%F" time-value))
 
-(defun increamemo-time-now ()
-  "Return the current timestamp in ISO 8601 format."
-  (format-time-string "%FT%T%z"))
+(defun increamemo-time-now (&optional time-value)
+  "Return TIME-VALUE as an ISO 8601 timestamp, or the current time when omitted."
+  (format-time-string "%FT%T%:z" time-value))
 
 (provide 'increamemo-time)
 ;;; increamemo-time.el ends here
