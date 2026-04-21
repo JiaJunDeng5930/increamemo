@@ -32,6 +32,7 @@
     (define-key map (kbd "i") #'increamemo-board-show-invalid)
     (define-key map (kbd "g") #'increamemo-board-refresh)
     (define-key map (kbd "RET") #'increamemo-board-open-current-item)
+    (define-key map (kbd "q") #'increamemo-board-quit)
     map)
   "Keymap for `increamemo-board-mode'.")
 
@@ -172,6 +173,11 @@
         (increamemo-time-now))
        (increamemo-board-refresh)
        nil))))
+
+(defun increamemo-board-quit ()
+  "Quit the board buffer."
+  (interactive)
+  (quit-window nil (selected-window)))
 
 (define-derived-mode increamemo-board-mode tabulated-list-mode "Increamemo Board"
   "Major mode for the increamemo board."

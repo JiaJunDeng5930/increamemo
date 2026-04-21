@@ -327,5 +327,66 @@
               (when (buffer-live-p opened-buffer)
                 (kill-buffer opened-buffer)))))))))
 
+(ert-deftest increamemo-work-session-progress-restarts-from-current-due-set ()
+  "A new work session recomputes progress from the remaining due items."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-work-" t))
+          (first-buffer nil)
+          (second-buffer nil))
+      (unwind-protect
+          (let* ((first-path
+                  (increamemo-work-test--write-note root "notes/first.md" "first"))
+                 (second-path
+                  (increamemo-work-test--write-note root "notes/second.md" "second"))
+                 (third-path
+                  (increamemo-work-test--write-note root "notes/third.md" "third"))
+                 (time-values '("2026-04-21T08:00:00+00:00"
+                                "2026-04-21T08:01:00+00:00"
+                                "2026-04-21T08:02:00+00:00"
+                                "2026-04-21T09:00:00+00:00"
+                                "2026-04-21T09:00:01+00:00")))
+            (dolist (item `((,first-path 10)
+                            (,second-path 20)
+                            (,third-path 30)))
+              (increamemo-domain-ensure-item
+               (increamemo-work-test--source-ref (car item))
+               (cadr item)
+               "2026-04-21"
+               (pop time-values)))
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21"))
+                      ((symbol-function 'increamemo-time-now)
+                       (lambda ()
+                         (prog1 (car time-values)
+                           (setq time-values (cdr time-values)))))
+                      ((symbol-function 'message)
+                       (lambda (&rest _args) nil))
+                      ((symbol-function 'increamemo-reschedule-function)
+                       #'ignore))
+              (setq increamemo-reschedule-function
+                    (lambda (_item _action) "2026-04-28"))
+              (setq first-buffer (increamemo-work-start))
+              (with-current-buffer first-buffer
+                (setq second-buffer (increamemo-work-complete)))
+              (with-current-buffer second-buffer
+                (should (equal (increamemo-work--mode-line-text) "IM[1/2]"))
+                (increamemo-work-quit))
+              (kill-buffer second-buffer)
+              (setq second-buffer nil)
+              (when (buffer-live-p first-buffer)
+                (kill-buffer first-buffer)
+                (setq first-buffer nil))
+              (setq first-buffer (increamemo-work-start))
+              (with-current-buffer first-buffer
+                (should (equal (buffer-file-name) second-path))
+                (should (equal (increamemo-work--mode-line-text) "IM[0/2]"))
+                (increamemo-work-quit))))
+        (when (buffer-live-p second-buffer)
+          (kill-buffer second-buffer))
+        (when (buffer-live-p first-buffer)
+          (kill-buffer first-buffer))
+        (delete-directory root t)))))
+
 (provide 'increamemo-work-test)
 ;;; increamemo-work-test.el ends here

@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'increamemo-board)
 (require 'increamemo-test-support)
 (require 'increamemo-work)
 
@@ -42,6 +43,23 @@
                 #'increamemo-work-complete))
     (increamemo-work-mode -1)
     (should-not (key-binding (kbd "C-c , c")))))
+
+(ert-deftest increamemo-board-keymap-exposes-documented-actions ()
+  "Board mode exposes the documented row actions and quit binding."
+  (with-temp-buffer
+    (increamemo-board-mode)
+    (should (eq (key-binding (kbd "a"))
+                #'increamemo-board-add-item))
+    (should (eq (key-binding (kbd "A"))
+                #'increamemo-board-archive-current-item))
+    (should (eq (key-binding (kbd "d"))
+                #'increamemo-board-update-current-due-date))
+    (should (eq (key-binding (kbd "p"))
+                #'increamemo-board-update-current-priority))
+    (should (eq (key-binding (kbd "t"))
+                #'increamemo-board-show-due))
+    (should (eq (key-binding (kbd "q"))
+                #'increamemo-board-quit))))
 
 (provide 'increamemo-static-test)
 ;;; increamemo-static-test.el ends here
