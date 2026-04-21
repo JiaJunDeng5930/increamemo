@@ -65,6 +65,25 @@
   (or (increamemo-board--current-item)
       (user-error "Increamemo: no board item on the current line")))
 
+(defun increamemo-board--missing-item-error-p (err)
+  "Return non-nil when ERR reports a missing scheduled item."
+  (and (eq (car err) 'user-error)
+       (string-match-p
+        "\\`Increamemo: item [0-9]+ does not exist\\'"
+        (error-message-string err))))
+
+(defun increamemo-board--call-with-missing-item-refresh (thunk)
+  "Call THUNK and refresh the board when its row item is already missing."
+  (condition-case err
+      (funcall thunk)
+    (user-error
+     (if (increamemo-board--missing-item-error-p err)
+         (progn
+           (message "%s" (error-message-string err))
+           (increamemo-board-refresh)
+           nil)
+       (signal (car err) (cdr err))))))
+
 (defun increamemo-board--normalize-locator (type locator)
   "Return a normalized LOCATOR for TYPE."
   (if (string= type "file")
@@ -145,51 +164,59 @@
   "Archive the current board row item and refresh."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-domain-archive-item
-   (plist-get (increamemo-board--current-item-required) :id)
-   (increamemo-time-now))
-  (increamemo-board-refresh))
+  (increamemo-board--call-with-missing-item-refresh
+   (lambda ()
+     (increamemo-domain-archive-item
+      (plist-get (increamemo-board--current-item-required) :id)
+      (increamemo-time-now))
+     (increamemo-board-refresh))))
 
 (defun increamemo-board-update-current-due-date ()
   "Update the due date for the current board row item."
   (interactive)
   (increamemo-config-require-ready)
-  (let ((item (increamemo-board--current-item-required)))
-    (increamemo-domain-update-due-date
-     (plist-get item :id)
-     (read-string "Due date: " (plist-get item :next-due-date))
-     (increamemo-time-now))
-    (increamemo-board-refresh)))
+  (increamemo-board--call-with-missing-item-refresh
+   (lambda ()
+     (let ((item (increamemo-board--current-item-required)))
+       (increamemo-domain-update-due-date
+        (plist-get item :id)
+        (read-string "Due date: " (plist-get item :next-due-date))
+        (increamemo-time-now))
+       (increamemo-board-refresh)))))
 
 (defun increamemo-board-update-current-priority ()
   "Update the priority for the current board row item."
   (interactive)
   (increamemo-config-require-ready)
-  (let ((item (increamemo-board--current-item-required)))
-    (increamemo-domain-update-priority
-     (plist-get item :id)
-     (read-number "Priority: " (plist-get item :priority))
-     (increamemo-time-now))
-    (increamemo-board-refresh)))
+  (increamemo-board--call-with-missing-item-refresh
+   (lambda ()
+     (let ((item (increamemo-board--current-item-required)))
+       (increamemo-domain-update-priority
+        (plist-get item :id)
+        (read-number "Priority: " (plist-get item :priority))
+        (increamemo-time-now))
+       (increamemo-board-refresh)))))
 
 (defun increamemo-board-open-current-item ()
   "Open the current board row item."
   (interactive)
   (increamemo-config-require-ready)
-  (let ((item (increamemo-board--current-item-required)))
-    (condition-case err
-        (increamemo-opener-open-item item)
-      (increamemo-opener-error
-       (message
-        "Increamemo: failed to open item #%s: %s"
-        (plist-get item :id)
-        (plist-get (car (cdr err)) :message))
-       (increamemo-failure-handle-open-error
-        item
-        err
-        (increamemo-time-now))
-       (increamemo-board-refresh)
-       nil))))
+  (increamemo-board--call-with-missing-item-refresh
+   (lambda ()
+     (let ((item (increamemo-board--current-item-required)))
+       (condition-case err
+           (increamemo-opener-open-item item)
+         (increamemo-opener-error
+          (message
+           "Increamemo: failed to open item #%s: %s"
+           (plist-get item :id)
+           (plist-get (car (cdr err)) :message))
+          (increamemo-failure-handle-open-error
+           item
+           err
+           (increamemo-time-now))
+          (increamemo-board-refresh)
+          nil))))))
 
 (defun increamemo-board-quit ()
   "Quit the board buffer."
