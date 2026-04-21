@@ -217,6 +217,8 @@
 (defun increamemo-board-open ()
   "Open the board buffer."
   (interactive)
+  (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
   (let ((buffer (get-buffer-create increamemo-board-buffer-name)))
     (with-current-buffer buffer
       (unless (derived-mode-p 'increamemo-board-mode)

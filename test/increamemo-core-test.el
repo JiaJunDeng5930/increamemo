@@ -84,5 +84,13 @@
       (should-error (increamemo-board) :type 'user-error)
       (should-not (file-exists-p increamemo-db-file)))))
 
+(ert-deftest increamemo-board-open-gates-before-creating-buffer ()
+  "Board runtime open checks gates before creating the board buffer."
+  (let ((increamemo-db-file nil))
+    (when (get-buffer increamemo-board-buffer-name)
+      (kill-buffer increamemo-board-buffer-name))
+    (should-error (increamemo-board-open) :type 'user-error)
+    (should-not (get-buffer increamemo-board-buffer-name))))
+
 (provide 'increamemo-core-test)
 ;;; increamemo-core-test.el ends here
