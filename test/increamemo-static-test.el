@@ -34,6 +34,15 @@
           (push file violations))))
     (should-not violations)))
 
+(ert-deftest increamemo-static-work-and-board-do-not-depend-on-migration ()
+  "Runtime UI modules keep schema management out of their dependency graph."
+  (dolist (file '("increamemo-work.el" "increamemo-board.el"))
+    (should-not
+     (string-match-p
+      "(require 'increamemo-migration)"
+      (increamemo-test-support-read-file
+       (expand-file-name file increamemo-test-support--project-root))))))
+
 (ert-deftest increamemo-work-keymap-only-activates-in-work-mode ()
   "Work commands are available only while work mode is enabled."
   (with-temp-buffer
