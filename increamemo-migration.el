@@ -13,11 +13,11 @@
   "Current increamemo schema version.")
 
 (defconst increamemo-migration--schema-statements
-  '("CREATE TABLE increamemo_meta (
+  '("CREATE TABLE IF NOT EXISTS increamemo_meta (
        key TEXT PRIMARY KEY,
        value TEXT NOT NULL
      )"
-    "CREATE TABLE increamemo_items (
+    "CREATE TABLE IF NOT EXISTS increamemo_items (
        id INTEGER PRIMARY KEY AUTOINCREMENT,
        type TEXT NOT NULL,
        locator TEXT NOT NULL,
@@ -33,7 +33,7 @@
        custom_json TEXT,
        version INTEGER NOT NULL DEFAULT 0
      )"
-    "CREATE TABLE increamemo_history (
+    "CREATE TABLE IF NOT EXISTS increamemo_history (
        id INTEGER PRIMARY KEY AUTOINCREMENT,
        item_id INTEGER NOT NULL,
        action TEXT NOT NULL,
@@ -47,12 +47,16 @@
        payload_json TEXT,
        FOREIGN KEY(item_id) REFERENCES increamemo_items(id)
      )"
-    "CREATE INDEX increamemo_items_due_idx
+    "CREATE INDEX IF NOT EXISTS increamemo_items_due_idx
        ON increamemo_items(state, next_due_date, priority, created_at)"
-    "CREATE UNIQUE INDEX increamemo_items_live_locator_idx
+    "CREATE UNIQUE INDEX IF NOT EXISTS increamemo_items_live_locator_idx
        ON increamemo_items(type, locator)
        WHERE state IN ('active', 'invalid')")
   "Statements required for the initial schema.")
+
+(defconst increamemo-migration--upgrade-steps
+  '(("0" . increamemo-migration--upgrade-from-0))
+  "Migration functions keyed by their source schema version.")
 
 (defun increamemo-migration--table-exists-p (connection table-name)
   "Return non-nil when TABLE-NAME exists on CONNECTION."
@@ -69,15 +73,40 @@
      "SELECT value FROM increamemo_meta WHERE key = ?"
      '("schema-version"))))
 
-(defun increamemo-migration--install-schema (connection)
-  "Install the base schema on CONNECTION."
+(defun increamemo-migration--set-schema-version (connection version)
+  "Persist VERSION in the schema metadata table on CONNECTION."
+  (increamemo-storage-execute
+   connection
+   (concat
+    "INSERT INTO increamemo_meta(key, value) VALUES(?, ?) "
+    "ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+   (list "schema-version" version)))
+
+(defun increamemo-migration--ensure-current-schema (connection)
+  "Ensure the current schema exists on CONNECTION."
   (increamemo-storage-with-transaction connection
     (dolist (statement increamemo-migration--schema-statements)
       (increamemo-storage-execute connection statement))
-    (increamemo-storage-execute
+    (increamemo-migration--set-schema-version
      connection
-     "INSERT INTO increamemo_meta(key, value) VALUES(?, ?)"
-     (list "schema-version" increamemo-migration-schema-version))))
+     increamemo-migration-schema-version)))
+
+(defun increamemo-migration--upgrade-from-0 (connection)
+  "Upgrade schema version 0 on CONNECTION to the current version."
+  (increamemo-migration--ensure-current-schema connection))
+
+(defun increamemo-migration--upgrade-schema (connection version)
+  "Upgrade schema VERSION on CONNECTION to the current version."
+  (let ((current-version version))
+    (while (not (string= current-version increamemo-migration-schema-version))
+      (let ((step (assoc current-version increamemo-migration--upgrade-steps)))
+        (unless step
+          (user-error
+           "Increamemo: schema version %s is unsupported"
+           current-version))
+        (funcall (cdr step) connection)
+        (setq current-version
+              (increamemo-migration--schema-version connection))))))
 
 (defun increamemo-migration-initialize ()
   "Ensure the database schema exists and matches the current version."
@@ -90,9 +119,12 @@
           (let ((version (increamemo-migration--schema-version connection)))
             (cond
              ((null version)
-              (increamemo-migration--install-schema connection))
+              (increamemo-migration--ensure-current-schema connection))
              ((string= version increamemo-migration-schema-version)
               db-file)
+             ((< (string-to-number version)
+                 (string-to-number increamemo-migration-schema-version))
+              (increamemo-migration--upgrade-schema connection version))
              (t
               (user-error
                "Increamemo: schema version %s is unsupported"
