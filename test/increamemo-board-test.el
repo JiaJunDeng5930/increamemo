@@ -187,6 +187,22 @@
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
 
+(ert-deftest increamemo-board-quit-kills-board-buffer ()
+  "Quitting the board closes its buffer."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21")))
+              (let ((buffer (increamemo-board-open)))
+                (with-current-buffer buffer
+                  (increamemo-board-quit))
+                (should-not (buffer-live-p buffer)))))
+        (delete-directory root t)))))
+
 (ert-deftest increamemo-board-actions-update-items-and-refresh-entries ()
   "Board row actions update persistent state and refresh the table."
   (increamemo-test-support-with-temp-db
