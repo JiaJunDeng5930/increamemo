@@ -38,7 +38,7 @@
          (item (increamemo-domain-ensure-item
                 source-ref
                 priority
-                (increamemo-time-today)
+                nil
                 (increamemo-time-now))))
     (message "Increamemo: added item #%s" (plist-get item :id))
     item))

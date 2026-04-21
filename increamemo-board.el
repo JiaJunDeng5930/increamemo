@@ -109,6 +109,12 @@
   (setq increamemo-board--filter 'invalid)
   (increamemo-board-refresh))
 
+(defun increamemo-board-show-all ()
+  "Switch the board to the all-items filter."
+  (interactive)
+  (setq increamemo-board--filter 'all)
+  (increamemo-board-refresh))
+
 (defun increamemo-board-add-item ()
   "Prompt for item fields, persist the item, and refresh the board."
   (interactive)

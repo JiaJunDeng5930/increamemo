@@ -77,5 +77,34 @@
                       increamemo-db-file
                       "SELECT COUNT(*) FROM increamemo_history"))))))))
 
+(ert-deftest increamemo-add-current-uses-configured-initial-due-date-strategy ()
+  "Adding the current file can derive its first due date from configuration."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-supported-file-formats '("md"))
+          (increamemo-file-openers '(("md" . find-file)))
+          (increamemo-initial-due-date-function
+           (lambda (source-ref priority today occurred-at)
+             (should (equal (plist-get source-ref :type) "file"))
+             (should (= priority 10))
+             (should (equal today "2026-04-21"))
+             (should (equal occurred-at "2026-04-21T08:00:00+00:00"))
+             "2026-04-25")))
+      (increamemo-test-support-with-file-buffer "notes/topic.md" "# title"
+        (cl-letf (((symbol-function 'read-number)
+                   (lambda (_prompt) 10))
+                  ((symbol-function 'increamemo-time-now)
+                   (lambda () "2026-04-21T08:00:00+00:00"))
+                  ((symbol-function 'message)
+                   (lambda (&rest _args) nil)))
+          (increamemo-add-current)
+          (should
+           (equal
+            (car
+             (increamemo-test-support-select-row
+              increamemo-db-file
+              "SELECT next_due_date FROM increamemo_items LIMIT 1"))
+            "2026-04-25")))))))
+
 (provide 'increamemo-add-current-test)
 ;;; increamemo-add-current-test.el ends here

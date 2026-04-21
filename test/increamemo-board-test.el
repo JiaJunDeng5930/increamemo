@@ -136,6 +136,31 @@
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
 
+(ert-deftest increamemo-board-filter-all-shows-active-invalid-and-archived-items ()
+  "All filter includes active, invalid, and archived items."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-show-all)
+                      (should (eq increamemo-board--filter 'all))
+                      (should (equal (sort (increamemo-board-test--entry-labels
+                                            tabulated-list-entries)
+                                           #'string<)
+                                     '("archived.md"
+                                       "due.md"
+                                       "invalid.md"
+                                       "planned.md"))))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))))
+
 (ert-deftest increamemo-board-open-current-item-opens-selected-row ()
   "Opening the current board row opens the selected item."
   (increamemo-test-support-with-temp-db

@@ -84,6 +84,28 @@
           :title-snapshot (plist-get source-ref :title-snapshot)
           :custom-json (plist-get source-ref :custom-json))))
 
+(defun increamemo-domain--occurred-at-date (occurred-at)
+  "Return the ISO date part of OCCURRED-AT."
+  (substring occurred-at 0 10))
+
+(defun increamemo-domain--resolve-initial-due-date
+    (source-ref priority due-date occurred-at)
+  "Return the initial due date for SOURCE-REF.
+
+PRIORITY and OCCURRED-AT are passed to the optional configured strategy.
+When DUE-DATE is non-nil, validate and return it."
+  (if due-date
+      (increamemo-domain--require-date due-date)
+    (let ((today (increamemo-domain--occurred-at-date occurred-at)))
+      (if increamemo-initial-due-date-function
+          (increamemo-domain--require-date
+           (funcall increamemo-initial-due-date-function
+                    source-ref
+                    priority
+                    today
+                    occurred-at))
+        today))))
+
 (defun increamemo-domain--row-to-item (row)
   "Convert database ROW into an item plist."
   (when row
@@ -273,10 +295,15 @@ ALLOWED-STATES defines which current states may apply ACTION."
 When OCCURRED-AT is nil, use the current timestamp."
   (let* ((normalized-source (increamemo-domain--require-source-ref source-ref))
          (validated-priority (increamemo-domain--require-priority priority))
-         (validated-due-date (increamemo-domain--require-date due-date))
          (validated-occurred-at
           (increamemo-domain--require-timestamp
            (or occurred-at (increamemo-time-now))))
+         (validated-due-date
+          (increamemo-domain--resolve-initial-due-date
+           normalized-source
+           validated-priority
+           due-date
+           validated-occurred-at))
          (db-file (increamemo-domain--db-file)))
     (let ((connection (increamemo-storage-open db-file)))
       (unwind-protect

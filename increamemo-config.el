@@ -28,6 +28,11 @@
   :type '(alist :key-type string :value-type function)
   :group 'increamemo)
 
+(defcustom increamemo-initial-due-date-function nil
+  "Optional function used to calculate the first due date for new items."
+  :type '(choice (const :tag "Today" nil) function)
+  :group 'increamemo)
+
 (declare-function increamemo-default-reschedule "increamemo-policy" ())
 
 (defcustom increamemo-reschedule-function #'increamemo-default-reschedule
@@ -65,6 +70,7 @@
   "Return a plist snapshot of the current configuration."
   (list :db-file (increamemo-config-db-file)
         :invalid-opener-policy increamemo-invalid-opener-policy
+        :initial-due-date-function increamemo-initial-due-date-function
         :reschedule-function increamemo-reschedule-function
         :mode-line-format-function increamemo-mode-line-format-function
         :backends increamemo-backends))
@@ -83,6 +89,10 @@
        increamemo-invalid-opener-policy)
     (user-error "Increamemo: invalid invalid opener policy: %S"
                 increamemo-invalid-opener-policy))
+  (unless (or (null increamemo-initial-due-date-function)
+              (functionp increamemo-initial-due-date-function))
+    (user-error "Increamemo: invalid initial due date function: %S"
+                increamemo-initial-due-date-function))
   (unless (functionp increamemo-reschedule-function)
     (user-error "Increamemo: invalid reschedule function: %S"
                 increamemo-reschedule-function))
