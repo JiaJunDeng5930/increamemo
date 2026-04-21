@@ -537,7 +537,7 @@ When OCCURRED-AT is nil, use the current timestamp."
                 :new-due-date validated-due-date
                 :previous-priority (nth 6 row)
                 :new-priority (nth 6 row))))
-      '(active invalid archived)))))
+      '(active)))))
 
 (defun increamemo-domain-update-priority
     (item-id priority &optional occurred-at)
@@ -578,9 +578,34 @@ When OCCURRED-AT is nil, use the current timestamp."
   "Update ITEM-ID with DUE-DATE.
 
 When OCCURRED-AT is nil, use the current timestamp."
-  (increamemo-domain--with-status
-   'updated
-   (increamemo-domain-defer-item item-id due-date occurred-at)))
+  (let ((validated-due-date (increamemo-domain--require-date due-date))
+        (validated-occurred-at
+         (increamemo-domain--require-timestamp
+          (or occurred-at (increamemo-time-now)))))
+    (increamemo-domain--with-status
+     'updated
+     (increamemo-domain--update-item
+      item-id
+      validated-occurred-at
+      "deferred"
+      (lambda (row)
+        (let ((version (nth 13 row)))
+          (list :sql
+                (concat
+                 "UPDATE increamemo_items "
+                 "SET next_due_date = ?, updated_at = ?, version = version + 1 "
+                 "WHERE id = ? AND version = ?")
+                :values (list validated-due-date
+                              validated-occurred-at
+                              item-id
+                              version)
+                :previous-state (nth 7 row)
+                :new-state (nth 7 row)
+                :previous-due-date (nth 5 row)
+                :new-due-date validated-due-date
+                :previous-priority (nth 6 row)
+                :new-priority (nth 6 row))))
+      '(active invalid archived)))))
 
 (defun increamemo-domain-skip-item (item-id &optional occurred-at)
   "Record a skip action for ITEM-ID without changing its schedule.
