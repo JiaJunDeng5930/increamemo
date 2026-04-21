@@ -186,6 +186,38 @@
                   "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'skipped'"
                   (list (plist-get item :id))))))))
 
+(ert-deftest increamemo-domain-delete-item-removes-row-and-writes-history ()
+  "Deleting an item removes the row and appends one deleted history row."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/delete.md")
+             15
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+           (item-id (plist-get item :id))
+           (result
+            (increamemo-domain-delete-item
+             item-id
+             "2026-04-21T09:00:00+00:00")))
+      (should (eq (plist-get result :status) 'deleted))
+      (should (= 0
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_items WHERE id = ?"
+                  (list item-id))))
+      (should (= 1
+                 (increamemo-test-support-count-rows
+                  increamemo-db-file
+                  "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'deleted'"
+                  (list item-id)))))
+    (let ((missing
+           (increamemo-domain-delete-item
+            9999
+            "2026-04-21T10:00:00+00:00")))
+      (should (eq (plist-get missing :status) 'deleted)))))
+
 (ert-deftest increamemo-domain-archive-item-is-idempotent-for-archived-items ()
   "Archiving an archived item returns the same archived state."
   (increamemo-test-support-with-temp-db

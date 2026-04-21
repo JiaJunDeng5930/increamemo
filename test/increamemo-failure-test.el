@@ -119,7 +119,19 @@
      (= 1
         (increamemo-test-support-count-rows
          increamemo-db-file
-         "SELECT COUNT(*) FROM increamemo_items WHERE state = 'active'")))))
+         "SELECT COUNT(*) FROM increamemo_items WHERE state = 'active'")))
+    (should
+     (= 1
+        (increamemo-test-support-count-rows
+         increamemo-db-file
+         "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'open_failed'"
+         (list broken-id))))
+    (should
+     (= 1
+        (increamemo-test-support-count-rows
+         increamemo-db-file
+         "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'deleted'"
+         (list broken-id))))))
 
 (ert-deftest increamemo-board-open-invalid-item-keep-policy-refreshes-error ()
   "Reopening an invalid item under keep policy preserves invalid state."
@@ -236,6 +248,18 @@
                     (increamemo-test-support-count-rows
                      increamemo-db-file
                      "SELECT COUNT(*) FROM increamemo_items WHERE id = ?"
+                     (list (plist-get item :id)))))
+                (should
+                 (= 1
+                    (increamemo-test-support-count-rows
+                     increamemo-db-file
+                     "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'open_failed'"
+                     (list (plist-get item :id)))))
+                (should
+                 (= 1
+                    (increamemo-test-support-count-rows
+                     increamemo-db-file
+                     "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ? AND action = 'deleted'"
                      (list (plist-get item :id))))))
             (kill-buffer buffer)))))))
 

@@ -642,6 +642,17 @@ When OCCURRED-AT is nil, use the current timestamp."
               (if (null row)
                   (list :status 'deleted :item nil)
                 (progn
+                  (increamemo-domain--insert-history
+                   connection
+                   item-id
+                   "deleted"
+                   validated-occurred-at
+                   (nth 7 row)
+                   nil
+                   (nth 5 row)
+                   nil
+                   (nth 6 row)
+                   nil)
                   (increamemo-storage-execute
                    connection
                    "DELETE FROM increamemo_items WHERE id = ?"
