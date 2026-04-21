@@ -76,12 +76,29 @@
 
 (defun increamemo-work--activate-buffer (buffer item)
   "Enable work mode in BUFFER for ITEM."
+  (setf (increamemo-session-current-item-id increamemo-work--session)
+        (plist-get item :id))
   (with-current-buffer buffer
     (setq-local increamemo-work--current-item-id (plist-get item :id))
     (setq-local increamemo-work--session-id
                 (increamemo-session-id increamemo-work--session))
     (increamemo-work-mode 1))
   buffer)
+
+(defun increamemo-work--open-next-item ()
+  "Open the next due item for the active session."
+  (let ((items
+         (increamemo-domain-list-due
+          (increamemo-session-date increamemo-work--session)
+          (increamemo-session-excluded-item-ids increamemo-work--session))))
+    (if (null items)
+        (progn
+          (setq increamemo-work--session nil)
+          (message "Increamemo: no due items")
+          nil)
+      (increamemo-work--activate-buffer
+       (increamemo-opener-open-item (car items))
+       (car items)))))
 
 (defun increamemo-work-start ()
   "Start a work session."
@@ -107,14 +124,26 @@
           nil)
       (let* ((item (car items))
              (buffer (increamemo-opener-open-item item)))
-        (setf (increamemo-session-current-item-id increamemo-work--session)
-              (plist-get item :id))
         (increamemo-work--activate-buffer buffer item)))))
 
 (defun increamemo-work-complete ()
   "Complete the current item."
   (interactive)
-  (user-error "Increamemo: complete is not implemented yet"))
+  (unless (and increamemo-work--session
+               increamemo-work--current-item-id)
+    (user-error "Increamemo: no active work item"))
+  (let* ((result
+          (increamemo-domain-complete-current
+           increamemo-work--current-item-id
+           (increamemo-session-date increamemo-work--session)
+           (increamemo-time-now)))
+         (status (plist-get result :status)))
+    (when (eq status 'completed)
+      (setf (increamemo-session-handled-count increamemo-work--session)
+            (1+ (increamemo-session-handled-count increamemo-work--session))))
+    (increamemo-work-mode -1)
+    (increamemo-work--clear-buffer-state)
+    (increamemo-work--open-next-item)))
 
 (defun increamemo-work-archive ()
   "Archive the current item."

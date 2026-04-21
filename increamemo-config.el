@@ -28,7 +28,9 @@
   :type '(alist :key-type string :value-type function)
   :group 'increamemo)
 
-(defcustom increamemo-reschedule-function #'ignore
+(declare-function increamemo-default-reschedule "increamemo-policy" ())
+
+(defcustom increamemo-reschedule-function #'increamemo-default-reschedule
   "Function used to calculate the next due date."
   :type 'function
   :group 'increamemo)

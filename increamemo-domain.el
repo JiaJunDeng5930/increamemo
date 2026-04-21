@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'increamemo-config)
+(require 'increamemo-policy)
 (require 'increamemo-storage)
 (require 'increamemo-time)
 
@@ -112,6 +113,17 @@
      "last_error, custom_json, version "
      "FROM increamemo_items WHERE id = ?")
     (list item-id))))
+
+(defun increamemo-domain--history-summary (connection item-id)
+  "Return a summary plist for ITEM-ID from CONNECTION."
+  (list
+   :history-count
+   (or
+    (increamemo-storage-select-value
+     connection
+     "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+     (list item-id))
+    0)))
 
 (defun increamemo-domain--find-live-duplicate-row (connection type locator)
   "Return the active or invalid row on CONNECTION for TYPE and LOCATOR."
@@ -372,6 +384,68 @@ When OCCURRED-AT is nil, use the current timestamp."
 
 When OCCURRED-AT is nil, use the current timestamp."
   (increamemo-domain-defer-item item-id due-date occurred-at))
+
+(defun increamemo-domain-complete-current
+    (item-id today &optional occurred-at)
+  "Complete ITEM-ID for TODAY.
+
+When OCCURRED-AT is nil, use the current timestamp."
+  (let* ((validated-today (increamemo-domain--require-date today))
+         (validated-occurred-at
+          (increamemo-domain--require-timestamp
+           (or occurred-at (increamemo-time-now))))
+         (db-file (increamemo-domain--db-file))
+         (connection (increamemo-storage-open db-file)))
+    (unwind-protect
+        (let ((row (or (increamemo-domain--select-item-row connection item-id)
+                       (user-error "Increamemo: item %s does not exist"
+                                   item-id))))
+          (unless (equal (nth 7 row) "active")
+            (user-error "Increamemo: item %s is not active" item-id))
+          (if (string< validated-today (nth 5 row))
+              (list :status 'stale
+                    :item (increamemo-domain--row-to-item row))
+            (let* ((item (increamemo-domain--row-to-item row))
+                   (history-summary
+                    (increamemo-domain--history-summary connection item-id))
+                   (new-due-date
+                    (increamemo-policy-compute-next-due-date
+                     item
+                     'complete
+                     history-summary
+                     validated-today)))
+              (increamemo-storage-with-transaction connection
+                (increamemo-storage-execute
+                 connection
+                 (concat
+                  "UPDATE increamemo_items "
+                  "SET next_due_date = ?, last_reviewed_at = ?, "
+                  "updated_at = ?, version = version + 1 "
+                  "WHERE id = ? AND version = ?")
+                 (list new-due-date
+                       validated-occurred-at
+                       validated-occurred-at
+                       item-id
+                       (nth 13 row)))
+                (increamemo-domain--insert-history
+                 connection
+                 item-id
+                 "completed"
+                 validated-occurred-at
+                 "active"
+                 "active"
+                 (nth 5 row)
+                 new-due-date
+                 (nth 6 row)
+                 (nth 6 row))
+                (list
+                 :status 'completed
+                 :item
+                 (increamemo-domain--row-to-item
+                  (increamemo-domain--select-item-row
+                   connection
+                   item-id)))))))
+      (increamemo-storage-close connection))))
 
 (provide 'increamemo-domain)
 ;;; increamemo-domain.el ends here
