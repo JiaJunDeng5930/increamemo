@@ -625,7 +625,7 @@ When OCCURRED-AT is nil, use the current timestamp."
                :new-due-date (nth 5 row)
                :previous-priority (nth 6 row)
                :new-priority (nth 6 row))))
-     '(active))))
+     '(active invalid))))
 
 (defun increamemo-domain-delete-item (item-id &optional occurred-at)
   "Delete ITEM-ID from the schedule.

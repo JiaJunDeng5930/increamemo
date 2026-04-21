@@ -9,6 +9,7 @@
 (require 'ert)
 (require 'cl-lib)
 (require 'increamemo)
+(require 'increamemo-board)
 (require 'increamemo-domain)
 (require 'increamemo-test-support)
 (require 'increamemo-work)
@@ -119,6 +120,56 @@
         (increamemo-test-support-count-rows
          increamemo-db-file
          "SELECT COUNT(*) FROM increamemo_items WHERE state = 'active'")))))
+
+(ert-deftest increamemo-board-open-invalid-item-keep-policy-refreshes-error ()
+  "Reopening an invalid item under keep policy preserves invalid state."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-invalid-opener-policy 'keep)
+          (captured-message nil)
+          (item nil))
+      (setq item
+            (increamemo-domain-ensure-item
+             (increamemo-failure-test--source-ref
+              "/tmp/increamemo-missing-note.md")
+             10
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+      (increamemo-domain-mark-invalid
+       (plist-get item :id)
+       "old error"
+       "2026-04-21T08:30:00+00:00")
+      (cl-letf (((symbol-function 'increamemo-time-today)
+                 (lambda () "2026-04-21"))
+                ((symbol-function 'increamemo-time-now)
+                 (lambda () "2026-04-21T09:00:00+00:00"))
+                ((symbol-function 'message)
+                 (lambda (format-string &rest args)
+                   (setq captured-message
+                         (apply #'format format-string args)))))
+        (let ((buffer (increamemo-board-open)))
+          (unwind-protect
+              (with-current-buffer buffer
+                (increamemo-board-show-invalid)
+                (increamemo-board-open-current-item)
+                (should (string-match-p "failed to open item" captured-message))
+                (should
+                 (equal
+                  (increamemo-test-support-select-row
+                   increamemo-db-file
+                   "SELECT state, last_error FROM increamemo_items WHERE id = ?"
+                   (list (plist-get item :id)))
+                  (list
+                   "invalid"
+                   "Increamemo: file does not exist: /tmp/increamemo-missing-note.md")))
+                (should (= 2
+                           (increamemo-test-support-count-rows
+                            increamemo-db-file
+                            (concat
+                             "SELECT COUNT(*) FROM increamemo_history "
+                             "WHERE item_id = ? AND action = 'open_failed'")
+                            (list (plist-get item :id))))))
+            (kill-buffer buffer)))))))
 
 (provide 'increamemo-failure-test)
 ;;; increamemo-failure-test.el ends here
