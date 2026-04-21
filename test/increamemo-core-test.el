@@ -105,5 +105,12 @@
       (should-error (increamemo-board-show-all) :type 'user-error)
       (should (eq increamemo-board--filter 'planned)))))
 
+(ert-deftest increamemo-board-quit-gates-config-before-closing ()
+  "Board quit checks configuration before acting."
+  (let ((increamemo-db-file nil))
+    (with-temp-buffer
+      (increamemo-board-mode)
+      (should-error (increamemo-board-quit) :type 'user-error))))
+
 (provide 'increamemo-core-test)
 ;;; increamemo-core-test.el ends here
