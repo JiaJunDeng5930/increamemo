@@ -25,6 +25,13 @@
     (user-error "Increamemo: missing ekg function: %S" symbol))
   symbol)
 
+(defun increamemo-ekg-backend--normalize-locator (locator)
+  "Return a normalized EKG LOCATOR."
+  (condition-case nil
+      (prin1-to-string (read locator))
+    (error
+     (user-error "Increamemo: invalid ekg locator: %S" locator))))
+
 (defun increamemo-ekg-backend-recognize-current (&optional buffer)
   "Return a source ref for BUFFER when it is an EKG note buffer."
   (let ((target-buffer (or buffer (current-buffer))))
@@ -40,10 +47,12 @@
 (defun increamemo-ekg-backend-build-source-ref (type locator &optional opener)
   "Return an EKG source ref for TYPE, LOCATOR, and optional OPENER."
   (when (string= type "ekg")
+    (let ((normalized-locator
+           (increamemo-ekg-backend--normalize-locator locator)))
     (list :type "ekg"
-          :locator locator
+          :locator normalized-locator
           :opener (or opener 'increamemo-ekg-open-note)
-          :title-snapshot locator)))
+          :title-snapshot normalized-locator))))
 
 (defun increamemo-ekg-open-note (locator)
   "Open the EKG note identified by LOCATOR."

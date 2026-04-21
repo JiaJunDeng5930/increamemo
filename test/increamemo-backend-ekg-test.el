@@ -75,5 +75,11 @@
     (should (eq (plist-get source-ref :opener) 'increamemo-ekg-open-note))
     (should (equal (plist-get source-ref :title-snapshot) "42"))))
 
+(ert-deftest increamemo-ekg-backend-build-source-ref-validates-locator ()
+  "Manual EKG source refs reject invalid locator syntax."
+  (should-error
+   (increamemo-ekg-backend-build-source-ref "ekg" "(")
+   :type 'user-error))
+
 (provide 'increamemo-backend-ekg-test)
 ;;; increamemo-backend-ekg-test.el ends here
