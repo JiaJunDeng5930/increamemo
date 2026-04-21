@@ -171,5 +171,73 @@
                             (list (plist-get item :id))))))
             (kill-buffer buffer)))))))
 
+(ert-deftest increamemo-board-open-broken-item-archive-policy-refreshes-list ()
+  "Board open failure with archive policy archives the item and refreshes rows."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-invalid-opener-policy 'archive)
+          (item nil))
+      (setq item
+            (increamemo-domain-ensure-item
+             (increamemo-failure-test--source-ref
+              "/tmp/increamemo-missing-note.md")
+             10
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+      (cl-letf (((symbol-function 'increamemo-time-today)
+                 (lambda () "2026-04-21"))
+                ((symbol-function 'increamemo-time-now)
+                 (lambda () "2026-04-21T09:00:00+00:00"))
+                ((symbol-function 'message)
+                 (lambda (&rest _args) nil)))
+        (let ((buffer (increamemo-board-open)))
+          (unwind-protect
+              (with-current-buffer buffer
+                (increamemo-board-show-planned)
+                (increamemo-board-open-current-item)
+                (should-not tabulated-list-entries)
+                (should
+                 (equal
+                  (car
+                   (increamemo-test-support-select-row
+                    increamemo-db-file
+                    "SELECT state FROM increamemo_items WHERE id = ?"
+                    (list (plist-get item :id))))
+                  "archived")))
+            (kill-buffer buffer)))))))
+
+(ert-deftest increamemo-board-open-broken-item-delete-policy-removes-row ()
+  "Board open failure with delete policy removes the item and refreshes rows."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-invalid-opener-policy 'delete)
+          (item nil))
+      (setq item
+            (increamemo-domain-ensure-item
+             (increamemo-failure-test--source-ref
+              "/tmp/increamemo-missing-note.md")
+             10
+             "2026-04-21"
+             "2026-04-21T08:00:00+00:00"))
+      (cl-letf (((symbol-function 'increamemo-time-today)
+                 (lambda () "2026-04-21"))
+                ((symbol-function 'increamemo-time-now)
+                 (lambda () "2026-04-21T09:00:00+00:00"))
+                ((symbol-function 'message)
+                 (lambda (&rest _args) nil)))
+        (let ((buffer (increamemo-board-open)))
+          (unwind-protect
+              (with-current-buffer buffer
+                (increamemo-board-show-planned)
+                (increamemo-board-open-current-item)
+                (should-not tabulated-list-entries)
+                (should
+                 (= 0
+                    (increamemo-test-support-count-rows
+                     increamemo-db-file
+                     "SELECT COUNT(*) FROM increamemo_items WHERE id = ?"
+                     (list (plist-get item :id))))))
+            (kill-buffer buffer)))))))
+
 (provide 'increamemo-failure-test)
 ;;; increamemo-failure-test.el ends here
