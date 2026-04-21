@@ -388,5 +388,69 @@
           (kill-buffer first-buffer))
         (delete-directory root t)))))
 
+(ert-deftest increamemo-work-session-uses-current-date-after-midnight ()
+  "An open session re-evaluates due items against the current date."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-work-" t))
+          (today-value "2026-04-21")
+          (current-buffer nil)
+          (next-buffer nil))
+      (unwind-protect
+          (let* ((first-path
+                  (increamemo-work-test--write-note root "notes/first.md" "first"))
+                 (second-path
+                  (increamemo-work-test--write-note root "notes/second.md" "second"))
+                 (time-values '("2026-04-21T08:00:00+00:00"
+                                "2026-04-21T08:01:00+00:00"
+                                "2026-04-22T00:01:00+00:00"
+                                "2026-04-22T00:02:00+00:00")))
+            (increamemo-domain-ensure-item
+             (increamemo-work-test--source-ref first-path)
+             10
+             "2026-04-21"
+             (pop time-values))
+            (increamemo-domain-ensure-item
+             (increamemo-work-test--source-ref second-path)
+             20
+             "2026-04-22"
+             (pop time-values))
+            (let ((increamemo-reschedule-function
+                   (lambda (_item _action _history-summary _today)
+                     "2026-04-28")))
+              (cl-letf (((symbol-function 'increamemo-time-today)
+                         (lambda () today-value))
+                        ((symbol-function 'increamemo-time-now)
+                         (lambda ()
+                           (prog1 (car time-values)
+                             (setq time-values (cdr time-values)))))
+                        ((symbol-function 'message)
+                         (lambda (&rest _args) nil)))
+                (setq current-buffer (increamemo-work-start))
+                (with-current-buffer current-buffer
+                  (should (equal (buffer-file-name) first-path))
+                  (should (equal (increamemo-work--mode-line-text) "IM[0/1]")))
+                (setq today-value "2026-04-22")
+                (with-current-buffer current-buffer
+                  (should (equal (increamemo-work--mode-line-text) "IM[0/2]"))
+                  (setq next-buffer (increamemo-work-skip)))
+                (with-current-buffer next-buffer
+                  (should (equal (buffer-file-name) second-path))
+                  (should (equal (increamemo-work--mode-line-text) "IM[1/1]"))
+                  (should-not (increamemo-work-complete))
+                  (should
+                   (equal
+                    (car
+                     (increamemo-test-support-select-row
+                      increamemo-db-file
+                      "SELECT next_due_date FROM increamemo_items WHERE locator = ?"
+                      (list second-path)))
+                    "2026-04-28"))))))
+        (when (buffer-live-p next-buffer)
+          (kill-buffer next-buffer))
+        (when (buffer-live-p current-buffer)
+          (kill-buffer current-buffer))
+        (delete-directory root t)))))
+
 (provide 'increamemo-work-test)
 ;;; increamemo-work-test.el ends here

@@ -55,13 +55,17 @@
   :lighter (:eval (increamemo-work--mode-line-text))
   :keymap increamemo-work-mode-map)
 
+(defun increamemo-work--today ()
+  "Return the current date for due-item decisions."
+  (increamemo-time-today))
+
 (defun increamemo-work--remaining-count ()
   "Return the remaining due item count for the active session."
   (if (and increamemo-work--session
            (increamemo-session-active-p increamemo-work--session))
       (length
        (increamemo-domain-list-due
-        (increamemo-session-date increamemo-work--session)
+        (increamemo-work--today)
         (increamemo-session-excluded-item-ids increamemo-work--session)))
     0))
 
@@ -134,7 +138,7 @@ INPUT accepts either an ISO date or a positive day offset."
   "Open the next due item for the active session."
   (let ((items
          (increamemo-domain-list-due
-          (increamemo-session-date increamemo-work--session)
+          (increamemo-work--today)
           (increamemo-session-excluded-item-ids increamemo-work--session))))
     (if (null items)
         (progn
@@ -184,7 +188,7 @@ INPUT accepts either an ISO date or a positive day offset."
          (result
           (increamemo-domain-complete-current
            item-id
-           (increamemo-session-date increamemo-work--session)
+           (increamemo-work--today)
            (increamemo-time-now)))
          (status (plist-get result :status)))
     (when (eq status 'completed)
@@ -214,7 +218,7 @@ INPUT accepts either an ISO date or a positive day offset."
          (new-due-date
           (increamemo-work--parse-defer-date
            raw-input
-           (increamemo-session-date increamemo-work--session))))
+           (increamemo-work--today))))
     (increamemo-domain-defer-item item-id new-due-date (increamemo-time-now))
     (increamemo-work--mark-current-handled)
     (increamemo-work--deactivate-current-buffer)
