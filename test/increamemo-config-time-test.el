@@ -26,6 +26,7 @@
   "Ready configuration returns an expanded snapshot."
   (let ((increamemo-db-file "~/tmp/increamemo.sqlite")
         (increamemo-invalid-opener-policy 'archive)
+        (increamemo-reschedule-function #'ignore)
         (increamemo-mode-line-format-function
          #'increamemo-default-mode-line-format)
         (increamemo-backends '(increamemo-file-backend
@@ -35,6 +36,7 @@
       (increamemo-config-require-ready)
       (list :db-file (expand-file-name increamemo-db-file)
             :invalid-opener-policy 'archive
+            :reschedule-function #'ignore
             :mode-line-format-function
             #'increamemo-default-mode-line-format
             :backends '(increamemo-file-backend
@@ -50,6 +52,12 @@
   "Readiness checks reject non-callable mode line formatters."
   (let ((increamemo-db-file "/tmp/increamemo.sqlite")
         (increamemo-mode-line-format-function 'not-a-function))
+    (should-error (increamemo-config-require-ready) :type 'user-error)))
+
+(ert-deftest increamemo-config-require-ready-rejects-invalid-reschedule-function ()
+  "Readiness checks reject non-callable reschedule functions."
+  (let ((increamemo-db-file "/tmp/increamemo.sqlite")
+        (increamemo-reschedule-function 'not-a-function))
     (should-error (increamemo-config-require-ready) :type 'user-error)))
 
 (ert-deftest increamemo-default-mode-line-format-renders-counts ()

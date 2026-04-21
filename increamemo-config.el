@@ -65,6 +65,7 @@
   "Return a plist snapshot of the current configuration."
   (list :db-file (increamemo-config-db-file)
         :invalid-opener-policy increamemo-invalid-opener-policy
+        :reschedule-function increamemo-reschedule-function
         :mode-line-format-function increamemo-mode-line-format-function
         :backends increamemo-backends))
 
@@ -82,6 +83,9 @@
        increamemo-invalid-opener-policy)
     (user-error "Increamemo: invalid invalid opener policy: %S"
                 increamemo-invalid-opener-policy))
+  (unless (functionp increamemo-reschedule-function)
+    (user-error "Increamemo: invalid reschedule function: %S"
+                increamemo-reschedule-function))
   (unless (functionp increamemo-mode-line-format-function)
     (user-error "Increamemo: invalid mode line format function: %S"
                 increamemo-mode-line-format-function))

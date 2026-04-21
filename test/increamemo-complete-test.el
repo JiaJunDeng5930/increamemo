@@ -94,6 +94,43 @@
              "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
              (list (plist-get item :id)))))))))
 
+(ert-deftest increamemo-domain-complete-current-passes-rich-history-summary ()
+  "Completion passes history details that match the documented callback inputs."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((increamemo-reschedule-function
+           (lambda (_item _action history-summary _today)
+             (should (equal (plist-get history-summary :history-count) 1))
+             (should (equal (plist-get history-summary :completed-count) 0))
+             (should (equal (plist-get history-summary :last-reviewed-at)
+                            "2026-04-19T07:00:00+00:00"))
+             (should (equal (plist-get history-summary :current-interval-days) 2))
+             (should (equal (plist-get history-summary :last-occurred-at)
+                            "2026-04-21T08:00:00+00:00"))
+             "2026-04-28")))
+      (let* ((item
+              (increamemo-domain-ensure-item
+               (list :type "file"
+                     :locator "/tmp/history-topic.md"
+                     :opener 'find-file
+                     :title-snapshot "history-topic.md")
+               10
+               "2026-04-21"
+               "2026-04-21T08:00:00+00:00")))
+        (let ((connection (increamemo-storage-open increamemo-db-file)))
+          (unwind-protect
+              (increamemo-storage-execute
+               connection
+               (concat
+                "UPDATE increamemo_items "
+                "SET last_reviewed_at = ? WHERE id = ?")
+               '("2026-04-19T07:00:00+00:00" 1))
+            (increamemo-storage-close connection)))
+        (increamemo-domain-complete-current
+         (plist-get item :id)
+         "2026-04-21"
+         "2026-04-21T09:00:00+00:00")))))
+
 (ert-deftest increamemo-domain-complete-current-returns-stale-without-write ()
   "Completing a non-due item returns stale and keeps persistent state unchanged."
   (increamemo-test-support-with-temp-db

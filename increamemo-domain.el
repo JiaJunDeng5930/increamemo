@@ -114,16 +114,62 @@
      "FROM increamemo_items WHERE id = ?")
     (list item-id))))
 
-(defun increamemo-domain--history-summary (connection item-id)
-  "Return a summary plist for ITEM-ID from CONNECTION."
-  (list
-   :history-count
-   (or
-    (increamemo-storage-select-value
-     connection
-     "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
-     (list item-id))
-    0)))
+(defun increamemo-domain--timestamp-date (timestamp)
+  "Return the ISO date portion of TIMESTAMP, or nil when absent."
+  (when timestamp
+    (substring timestamp 0 10)))
+
+(defun increamemo-domain--days-between (start-date end-date)
+  "Return whole days between START-DATE and END-DATE."
+  (let* ((start-time (date-to-time (concat start-date " 00:00:00 +0000")))
+         (end-time (date-to-time (concat end-date " 00:00:00 +0000"))))
+    (floor (/ (float-time (time-subtract end-time start-time)) 86400))))
+
+(defun increamemo-domain--history-summary (connection item-id &optional row)
+  "Return a summary plist for ITEM-ID from CONNECTION.
+
+When ROW is provided, enrich the summary with current item facts."
+  (let* ((current-row (or row (increamemo-domain--select-item-row connection item-id)))
+         (last-reviewed-at (and current-row (nth 10 current-row)))
+         (next-due-date (and current-row (nth 5 current-row)))
+         (last-reviewed-date
+          (increamemo-domain--timestamp-date last-reviewed-at)))
+    (list
+     :history-count
+     (or
+      (increamemo-storage-select-value
+       connection
+       "SELECT COUNT(*) FROM increamemo_history WHERE item_id = ?"
+       (list item-id))
+      0)
+     :completed-count
+     (or
+      (increamemo-storage-select-value
+       connection
+       (concat
+        "SELECT COUNT(*) FROM increamemo_history "
+        "WHERE item_id = ? AND action = 'completed'")
+       (list item-id))
+      0)
+     :last-completed-at
+     (increamemo-storage-select-value
+      connection
+      (concat
+       "SELECT occurred_at FROM increamemo_history "
+       "WHERE item_id = ? AND action = 'completed' "
+       "ORDER BY occurred_at DESC LIMIT 1")
+      (list item-id))
+     :last-occurred-at
+     (increamemo-storage-select-value
+      connection
+      (concat
+       "SELECT occurred_at FROM increamemo_history "
+       "WHERE item_id = ? ORDER BY occurred_at DESC LIMIT 1")
+      (list item-id))
+     :last-reviewed-at last-reviewed-at
+     :current-interval-days
+     (when (and last-reviewed-date next-due-date)
+       (increamemo-domain--days-between last-reviewed-date next-due-date)))))
 
 (defun increamemo-domain--require-advanced-version
     (connection item-id previous-version)
@@ -600,7 +646,7 @@ When OCCURRED-AT is nil, use the current timestamp."
                     :item (increamemo-domain--row-to-item row))
             (let* ((item (increamemo-domain--row-to-item row))
                    (history-summary
-                    (increamemo-domain--history-summary connection item-id))
+                    (increamemo-domain--history-summary connection item-id row))
                    (new-due-date
                     (increamemo-policy-compute-next-due-date
                      item
