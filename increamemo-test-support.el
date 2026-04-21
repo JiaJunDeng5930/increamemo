@@ -18,6 +18,25 @@
          (progn ,@body)
        (delete-directory temp-dir t))))
 
+(defmacro increamemo-test-support-with-file-buffer
+    (filename contents &rest body)
+  "Run BODY with a visiting buffer for FILENAME containing CONTENTS."
+  (declare (indent 2) (debug (form form body)))
+  `(let* ((temp-dir (make-temp-file "increamemo-test-file-" t))
+          (file-path (expand-file-name ,filename temp-dir)))
+     (unwind-protect
+         (progn
+           (make-directory (file-name-directory file-path) t)
+           (with-temp-file file-path
+             (insert ,contents))
+           (let ((buffer (find-file-noselect file-path)))
+             (unwind-protect
+                 (with-current-buffer buffer
+                   ,@body)
+               (when (buffer-live-p buffer)
+                 (kill-buffer buffer)))))
+       (delete-directory temp-dir t))))
+
 (defun increamemo-test-support-table-exists-p (db-file table-name)
   "Return non-nil when TABLE-NAME exists in DB-FILE."
   (let ((connection (increamemo-storage-open db-file)))

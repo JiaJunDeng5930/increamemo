@@ -16,7 +16,9 @@
 (require 'increamemo-backend)
 (require 'increamemo-board)
 (require 'increamemo-config)
+(require 'increamemo-domain)
 (require 'increamemo-migration)
+(require 'increamemo-time)
 (require 'increamemo-work)
 
 ;;;###autoload
@@ -31,7 +33,15 @@
   "Add the current note buffer to increamemo."
   (interactive)
   (increamemo-config-require-ready)
-  (user-error "Increamemo: add-current is not implemented yet"))
+  (let* ((priority (read-number "Priority: "))
+         (source-ref (increamemo-backend-identify-current (current-buffer)))
+         (item (increamemo-domain-ensure-item
+                source-ref
+                priority
+                (increamemo-time-today)
+                (increamemo-time-now))))
+    (message "Increamemo: added item #%s" (plist-get item :id))
+    item))
 
 ;;;###autoload
 (defun increamemo-work ()
