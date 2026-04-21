@@ -92,5 +92,18 @@
     (should-error (increamemo-board-open) :type 'user-error)
     (should-not (get-buffer increamemo-board-buffer-name))))
 
+(ert-deftest increamemo-board-filter-commands-gate-before-state-mutation ()
+  "Board filter commands keep the current filter unchanged when gating fails."
+  (let ((increamemo-db-file nil))
+    (with-temp-buffer
+      (increamemo-board-mode)
+      (setq-local increamemo-board--filter 'planned)
+      (should-error (increamemo-board-show-due) :type 'user-error)
+      (should (eq increamemo-board--filter 'planned))
+      (should-error (increamemo-board-show-invalid) :type 'user-error)
+      (should (eq increamemo-board--filter 'planned))
+      (should-error (increamemo-board-show-all) :type 'user-error)
+      (should (eq increamemo-board--filter 'planned)))))
+
 (provide 'increamemo-core-test)
 ;;; increamemo-core-test.el ends here

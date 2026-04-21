@@ -96,24 +96,28 @@
 (defun increamemo-board-show-due ()
   "Switch the board to the due filter."
   (interactive)
+  (increamemo-config-require-ready)
   (setq increamemo-board--filter 'due)
   (increamemo-board-refresh))
 
 (defun increamemo-board-show-planned ()
   "Switch the board to the planned filter."
   (interactive)
+  (increamemo-config-require-ready)
   (setq increamemo-board--filter 'planned)
   (increamemo-board-refresh))
 
 (defun increamemo-board-show-invalid ()
   "Switch the board to the invalid filter."
   (interactive)
+  (increamemo-config-require-ready)
   (setq increamemo-board--filter 'invalid)
   (increamemo-board-refresh))
 
 (defun increamemo-board-show-all ()
   "Switch the board to the all-items filter."
   (interactive)
+  (increamemo-config-require-ready)
   (setq increamemo-board--filter 'all)
   (increamemo-board-refresh))
 
