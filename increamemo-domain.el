@@ -385,6 +385,93 @@ When OCCURRED-AT is nil, use the current timestamp."
 When OCCURRED-AT is nil, use the current timestamp."
   (increamemo-domain-defer-item item-id due-date occurred-at))
 
+(defun increamemo-domain-record-open-failure
+    (item-id error-message &optional occurred-at)
+  "Record an open failure for ITEM-ID with ERROR-MESSAGE.
+
+When OCCURRED-AT is nil, use the current timestamp."
+  (let ((validated-occurred-at
+         (increamemo-domain--require-timestamp
+          (or occurred-at (increamemo-time-now)))))
+    (increamemo-domain--update-item
+     item-id
+     validated-occurred-at
+     "open_failed"
+     (lambda (row)
+       (let ((version (nth 13 row)))
+         (list :sql
+               (concat
+                "UPDATE increamemo_items "
+                "SET last_error = ?, updated_at = ?, version = version + 1 "
+                "WHERE id = ? AND version = ?")
+               :values (list error-message
+                             validated-occurred-at
+                             item-id
+                             version)
+               :previous-state (nth 7 row)
+               :new-state (nth 7 row)
+               :previous-due-date (nth 5 row)
+               :new-due-date (nth 5 row)
+               :previous-priority (nth 6 row)
+               :new-priority (nth 6 row))))
+     '(active invalid))))
+
+(defun increamemo-domain-mark-invalid
+    (item-id error-message &optional occurred-at)
+  "Mark ITEM-ID invalid with ERROR-MESSAGE.
+
+When OCCURRED-AT is nil, use the current timestamp."
+  (let ((validated-occurred-at
+         (increamemo-domain--require-timestamp
+          (or occurred-at (increamemo-time-now)))))
+    (increamemo-domain--update-item
+     item-id
+     validated-occurred-at
+     "open_failed"
+     (lambda (row)
+       (let ((version (nth 13 row)))
+         (list :sql
+               (concat
+                "UPDATE increamemo_items "
+                "SET state = 'invalid', last_error = ?, "
+                "updated_at = ?, version = version + 1 "
+                "WHERE id = ? AND version = ?")
+               :values (list error-message
+                             validated-occurred-at
+                             item-id
+                             version)
+               :previous-state (nth 7 row)
+               :new-state "invalid"
+               :previous-due-date (nth 5 row)
+               :new-due-date (nth 5 row)
+               :previous-priority (nth 6 row)
+               :new-priority (nth 6 row))))
+     '(active))))
+
+(defun increamemo-domain-delete-item (item-id &optional occurred-at)
+  "Delete ITEM-ID from the schedule.
+
+When OCCURRED-AT is nil, use the current timestamp."
+  (let ((validated-occurred-at
+         (increamemo-domain--require-timestamp
+          (or occurred-at (increamemo-time-now))))
+        (db-file (increamemo-domain--db-file)))
+    (let ((connection (increamemo-storage-open db-file)))
+      (unwind-protect
+          (increamemo-storage-with-transaction connection
+            (let ((row (increamemo-domain--select-item-row connection item-id)))
+              (if (null row)
+                  (list :status 'deleted :item nil)
+                (progn
+                  (increamemo-storage-execute
+                   connection
+                   "DELETE FROM increamemo_items WHERE id = ?"
+                   (list item-id))
+                  (list :status 'deleted
+                        :item (increamemo-domain--row-to-item row)
+                        :occurred-at validated-occurred-at)))))
+        (increamemo-storage-close connection)))))
+
 (defun increamemo-domain-complete-current
     (item-id today &optional occurred-at)
   "Complete ITEM-ID for TODAY.

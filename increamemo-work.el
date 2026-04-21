@@ -9,6 +9,7 @@
 (require 'cl-lib)
 (require 'increamemo-config)
 (require 'increamemo-domain)
+(require 'increamemo-failure)
 (require 'increamemo-opener)
 (require 'increamemo-time)
 
@@ -96,9 +97,23 @@
           (setq increamemo-work--session nil)
           (message "Increamemo: no due items")
           nil)
-      (increamemo-work--activate-buffer
-       (increamemo-opener-open-item (car items))
-       (car items)))))
+      (let ((item (car items)))
+        (condition-case err
+            (increamemo-work--activate-buffer
+             (increamemo-opener-open-item item)
+             item)
+          (increamemo-opener-error
+           (message
+            "Increamemo: failed to open item #%s: %s"
+            (plist-get item :id)
+            (plist-get (car (cdr err)) :message))
+           (setf (increamemo-session-handled-count increamemo-work--session)
+                 (1+ (increamemo-session-handled-count increamemo-work--session)))
+           (increamemo-failure-handle-open-error
+            item
+            err
+            (increamemo-time-now))
+           (increamemo-work--open-next-item)))))))
 
 (defun increamemo-work-start ()
   "Start a work session."
@@ -110,21 +125,9 @@
            :handled-count 0
            :excluded-item-ids nil
            :current-item-id nil
-           :active-p t))
-         (items nil))
+           :active-p t)))
     (setq increamemo-work--session session)
-    (setq items
-          (increamemo-domain-list-due
-           today
-           (increamemo-session-excluded-item-ids session)))
-    (if (null items)
-        (progn
-          (setq increamemo-work--session nil)
-          (message "Increamemo: no due items")
-          nil)
-      (let* ((item (car items))
-             (buffer (increamemo-opener-open-item item)))
-        (increamemo-work--activate-buffer buffer item)))))
+    (increamemo-work--open-next-item)))
 
 (defun increamemo-work-complete ()
   "Complete the current item."
