@@ -2,11 +2,103 @@
 
 ;;; Commentary:
 
-;; Board major mode placeholder.
+;; Board runtime and tabulated list presentation.
 
 ;;; Code:
 
+(require 'increamemo-domain)
+(require 'increamemo-failure)
+(require 'increamemo-opener)
+(require 'increamemo-time)
 (require 'tabulated-list)
+
+(defconst increamemo-board-buffer-name "*Increamemo Board*"
+  "Name of the board buffer.")
+
+(defvar-local increamemo-board--filter 'planned
+  "Current board filter.")
+
+(defvar-local increamemo-board--items nil
+  "Current board item snapshots keyed by id.")
+
+(defvar increamemo-board-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map tabulated-list-mode-map)
+    (define-key map (kbd "t") #'increamemo-board-show-due)
+    (define-key map (kbd "i") #'increamemo-board-show-invalid)
+    (define-key map (kbd "g") #'increamemo-board-refresh)
+    (define-key map (kbd "RET") #'increamemo-board-open-current-item)
+    map)
+  "Keymap for `increamemo-board-mode'.")
+
+(defun increamemo-board--format-item (item)
+  "Return the tabulated list entry for ITEM."
+  (let ((id (plist-get item :id)))
+    (list
+     id
+     (vector
+      (plist-get item :type)
+      (or (plist-get item :next-due-date) "")
+      (number-to-string (plist-get item :priority))
+      (plist-get item :state)
+      (plist-get item :opener)
+      (or (plist-get item :title-snapshot) "")
+      (plist-get item :locator)))))
+
+(defun increamemo-board--today ()
+  "Return today's date for board filtering."
+  (increamemo-time-today))
+
+(defun increamemo-board--current-item ()
+  "Return the item snapshot for the current board row."
+  (let ((item-id (tabulated-list-get-id)))
+    (alist-get item-id increamemo-board--items)))
+
+(defun increamemo-board-refresh ()
+  "Refresh the board entries for the current filter."
+  (interactive)
+  (let* ((items
+          (increamemo-domain-list-planned
+           increamemo-board--filter
+           (increamemo-board--today)))
+         (entries (mapcar #'increamemo-board--format-item items)))
+    (setq increamemo-board--items
+          (mapcar (lambda (item)
+                    (cons (plist-get item :id) item))
+                  items))
+    (setq tabulated-list-entries entries)
+    (tabulated-list-print t)))
+
+(defun increamemo-board-show-due ()
+  "Switch the board to the due filter."
+  (interactive)
+  (setq increamemo-board--filter 'due)
+  (increamemo-board-refresh))
+
+(defun increamemo-board-show-invalid ()
+  "Switch the board to the invalid filter."
+  (interactive)
+  (setq increamemo-board--filter 'invalid)
+  (increamemo-board-refresh))
+
+(defun increamemo-board-open-current-item ()
+  "Open the current board row item."
+  (interactive)
+  (let ((item (or (increamemo-board--current-item)
+                  (user-error "Increamemo: no board item on the current line"))))
+    (condition-case err
+        (increamemo-opener-open-item item)
+      (increamemo-opener-error
+       (message
+        "Increamemo: failed to open item #%s: %s"
+        (plist-get item :id)
+        (plist-get (car (cdr err)) :message))
+       (increamemo-failure-handle-open-error
+        item
+        err
+        (increamemo-time-now))
+       (increamemo-board-refresh)
+       nil))))
 
 (define-derived-mode increamemo-board-mode tabulated-list-mode "Increamemo Board"
   "Major mode for the increamemo board."
@@ -16,19 +108,23 @@
          ("Priority" 10 t)
          ("State" 10 t)
          ("Opener" 20 t)
-         ("Title" 24 t)])
+         ("Title" 24 t)
+         ("Locator" 32 t)])
   (setq tabulated-list-padding 2)
+  (setq increamemo-board--filter 'planned)
+  (setq increamemo-board--items nil)
   (tabulated-list-init-header))
 
 (defun increamemo-board-open ()
   "Open the board buffer."
   (interactive)
-  (let ((buffer (get-buffer-create "*Increamemo Board*")))
+  (let ((buffer (get-buffer-create increamemo-board-buffer-name)))
     (with-current-buffer buffer
-      (increamemo-board-mode)
-      (setq tabulated-list-entries nil)
-      (tabulated-list-print))
-    (pop-to-buffer buffer)))
+      (unless (derived-mode-p 'increamemo-board-mode)
+        (increamemo-board-mode))
+      (increamemo-board-refresh))
+    (pop-to-buffer buffer)
+    buffer))
 
 (provide 'increamemo-board)
 ;;; increamemo-board.el ends here

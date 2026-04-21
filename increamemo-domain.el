@@ -287,6 +287,60 @@ When OCCURRED-AT is nil, use the current timestamp."
             (cons validated-today excluded-values)))
         (increamemo-storage-close connection)))))
 
+(defun increamemo-domain-list-planned (&optional filter today)
+  "Return planned items for FILTER using TODAY when needed.
+
+FILTER accepts `planned', `due', `invalid', and `all'."
+  (let* ((effective-filter (or filter 'planned))
+         (validated-today (and today (increamemo-domain--require-date today)))
+         (db-file (increamemo-domain--db-file))
+         (query
+          (pcase effective-filter
+            ('planned
+             (concat
+              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
+              "priority, state, created_at, updated_at, last_reviewed_at, "
+              "last_error, custom_json, version "
+              "FROM increamemo_items "
+              "WHERE state = 'active' AND next_due_date IS NOT NULL "
+              "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+            ('due
+             (unless validated-today
+               (user-error "Increamemo: today is required for due filter"))
+             (concat
+              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
+              "priority, state, created_at, updated_at, last_reviewed_at, "
+              "last_error, custom_json, version "
+              "FROM increamemo_items "
+              "WHERE state = 'active' AND next_due_date <= ? "
+              "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+            ('invalid
+             (concat
+              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
+              "priority, state, created_at, updated_at, last_reviewed_at, "
+              "last_error, custom_json, version "
+              "FROM increamemo_items "
+              "WHERE state = 'invalid' "
+              "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+            ('all
+             (concat
+              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
+              "priority, state, created_at, updated_at, last_reviewed_at, "
+              "last_error, custom_json, version "
+              "FROM increamemo_items "
+              "ORDER BY state ASC, priority ASC, next_due_date ASC, created_at ASC"))
+            (_
+             (user-error "Increamemo: unsupported board filter: %S"
+                         effective-filter))))
+         (values (if (eq effective-filter 'due)
+                     (list validated-today)
+                   nil)))
+    (let ((connection (increamemo-storage-open db-file)))
+      (unwind-protect
+          (mapcar #'increamemo-domain--row-to-item
+                  (increamemo-storage-select connection query values))
+        (increamemo-storage-close connection)))))
+
 (defun increamemo-domain-archive-item (item-id &optional occurred-at)
   "Archive ITEM-ID and append an archived history row.
 
