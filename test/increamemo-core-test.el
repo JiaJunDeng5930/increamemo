@@ -138,12 +138,18 @@
       (should-error (increamemo-board-show-all) :type 'user-error)
       (should (eq increamemo-board--filter 'planned)))))
 
-(ert-deftest increamemo-board-quit-gates-config-before-closing ()
-  "Board quit checks configuration before acting."
+(ert-deftest increamemo-board-quit-works-without-config ()
+  "Board quit remains available because it only cleans up UI state."
   (let ((increamemo-db-file nil))
-    (with-temp-buffer
-      (increamemo-board-mode)
-      (should-error (increamemo-board-quit) :type 'user-error))))
+    (let ((buffer (get-buffer-create "*Increamemo Board Test*")))
+      (unwind-protect
+          (with-current-buffer buffer
+            (increamemo-board-mode)
+            (switch-to-buffer buffer)
+            (increamemo-board-quit)
+            (should-not (buffer-live-p buffer)))
+        (when (buffer-live-p buffer)
+          (kill-buffer buffer))))))
 
 (provide 'increamemo-core-test)
 ;;; increamemo-core-test.el ends here

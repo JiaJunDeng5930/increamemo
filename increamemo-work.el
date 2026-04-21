@@ -251,8 +251,6 @@ INPUT accepts either an ISO date or a positive day offset."
 (defun increamemo-work-quit ()
   "Quit the current work session."
   (interactive)
-  (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (when (and increamemo-work--session
              (equal increamemo-work--session-id
                     (increamemo-session-id increamemo-work--session)))

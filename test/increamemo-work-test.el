@@ -101,6 +101,28 @@
           (when (buffer-live-p opened-buffer)
             (kill-buffer opened-buffer)))))))
 
+(ert-deftest increamemo-work-quit-cleans-up-without-config ()
+  "Work quit remains available because it only clears runtime state."
+  (let ((increamemo-db-file "/tmp/increamemo.sqlite"))
+    (with-temp-buffer
+      (setq increamemo-work--session
+            (make-increamemo-session
+             :id 1
+             :date "2026-04-21"
+             :handled-count 0
+             :excluded-item-ids nil
+             :current-item-id 7
+             :active-p t))
+      (setq-local increamemo-work--current-item-id 7)
+      (setq-local increamemo-work--session-id 1)
+      (increamemo-work-mode 1)
+      (let ((increamemo-db-file nil))
+        (increamemo-work-quit))
+      (should-not increamemo-work-mode)
+      (should-not increamemo-work--current-item-id)
+      (should-not increamemo-work--session-id)
+      (should-not increamemo-work--session))))
+
 (ert-deftest increamemo-work-archive-archives-current-item-and-opens-next-item ()
   "Archiving the current work item advances to the next due item."
   (increamemo-test-support-with-temp-db

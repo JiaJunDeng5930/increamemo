@@ -206,8 +206,6 @@
 (defun increamemo-board-quit ()
   "Quit the board buffer."
   (interactive)
-  (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (quit-window t (selected-window)))
 
 (define-derived-mode increamemo-board-mode tabulated-list-mode "Increamemo Board"
