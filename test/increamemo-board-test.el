@@ -327,5 +327,43 @@
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
 
+(ert-deftest increamemo-board-stale-row-open-messages-and-refreshes ()
+  "Opening a deleted row shows a message and refreshes instead of opening."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t))
+          (captured-message nil))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21"))
+                      ((symbol-function 'message)
+                       (lambda (format-string &rest args)
+                         (setq captured-message
+                               (apply #'format format-string args)))))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-test--goto-entry "planned.md")
+                      (let* ((item (increamemo-board--current-item-required))
+                             (item-id (plist-get item :id))
+                             (result nil))
+                        (increamemo-domain-delete-item
+                         item-id
+                         "2026-04-21T09:01:00+00:00")
+                        (setq result (increamemo-board-open-current-item))
+                        (should-not result)
+                        (should
+                         (equal captured-message
+                                (format "Increamemo: item %s does not exist"
+                                        item-id)))
+                        (should-not
+                         (member "planned.md"
+                                 (increamemo-board-test--entry-labels
+                                  tabulated-list-entries)))))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))))
+
 (provide 'increamemo-board-test)
 ;;; increamemo-board-test.el ends here

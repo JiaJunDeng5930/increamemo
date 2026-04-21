@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'increamemo-config)
 (require 'increamemo-domain)
 (require 'increamemo-failure)
@@ -64,6 +65,18 @@
   "Return the current board item or raise `user-error'."
   (or (increamemo-board--current-item)
       (user-error "Increamemo: no board item on the current line")))
+
+(defun increamemo-board--current-live-item-required ()
+  "Return the current board item after a fresh domain read."
+  (let* ((stale-item (increamemo-board--current-item-required))
+         (item-id (plist-get stale-item :id))
+         (live-item
+          (cl-find-if
+           (lambda (item)
+             (= (plist-get item :id) item-id))
+           (increamemo-domain-list-planned 'all (increamemo-board--today)))))
+    (or live-item
+        (user-error "Increamemo: item %s does not exist" item-id))))
 
 (defun increamemo-board--missing-item-error-p (err)
   "Return non-nil when ERR reports a missing scheduled item."
@@ -167,7 +180,7 @@
   (increamemo-board--call-with-missing-item-refresh
    (lambda ()
      (increamemo-domain-archive-item
-      (plist-get (increamemo-board--current-item-required) :id)
+      (plist-get (increamemo-board--current-live-item-required) :id)
       (increamemo-time-now))
      (increamemo-board-refresh))))
 
@@ -177,7 +190,7 @@
   (increamemo-config-require-ready)
   (increamemo-board--call-with-missing-item-refresh
    (lambda ()
-     (let ((item (increamemo-board--current-item-required)))
+     (let ((item (increamemo-board--current-live-item-required)))
        (increamemo-domain-update-due-date
         (plist-get item :id)
         (read-string "Due date: " (plist-get item :next-due-date))
@@ -190,7 +203,7 @@
   (increamemo-config-require-ready)
   (increamemo-board--call-with-missing-item-refresh
    (lambda ()
-     (let ((item (increamemo-board--current-item-required)))
+     (let ((item (increamemo-board--current-live-item-required)))
        (increamemo-domain-update-priority
         (plist-get item :id)
         (read-number "Priority: " (plist-get item :priority))
@@ -203,7 +216,7 @@
   (increamemo-config-require-ready)
   (increamemo-board--call-with-missing-item-refresh
    (lambda ()
-     (let ((item (increamemo-board--current-item-required)))
+     (let ((item (increamemo-board--current-live-item-required)))
        (condition-case err
            (increamemo-opener-open-item item)
          (increamemo-opener-error
