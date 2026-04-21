@@ -39,7 +39,7 @@
   (dolist (file '("increamemo-work.el" "increamemo-board.el"))
     (should-not
      (string-match-p
-      "(require 'increamemo-migration)"
+      "increamemo-migration-"
       (increamemo-test-support-read-file
        (expand-file-name file increamemo-test-support--project-root))))))
 

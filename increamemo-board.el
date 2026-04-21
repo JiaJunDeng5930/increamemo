@@ -6,8 +6,6 @@
 
 ;;; Code:
 
-(declare-function increamemo-migration-require-initialized "increamemo-migration" ())
-
 (require 'increamemo-config)
 (require 'increamemo-domain)
 (require 'increamemo-failure)
@@ -83,7 +81,6 @@
   "Refresh the board entries for the current filter."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (let* ((items
           (increamemo-domain-list-planned
            increamemo-board--filter
@@ -100,7 +97,6 @@
   "Switch the board to the due filter."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (setq increamemo-board--filter 'due)
   (increamemo-board-refresh))
 
@@ -108,7 +104,6 @@
   "Switch the board to the planned filter."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (setq increamemo-board--filter 'planned)
   (increamemo-board-refresh))
 
@@ -116,7 +111,6 @@
   "Switch the board to the invalid filter."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (setq increamemo-board--filter 'invalid)
   (increamemo-board-refresh))
 
@@ -124,7 +118,6 @@
   "Switch the board to the all-items filter."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (setq increamemo-board--filter 'all)
   (increamemo-board-refresh))
 
@@ -132,7 +125,6 @@
   "Prompt for item fields, persist the item, and refresh the board."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (let* ((type (read-string "Type: "))
          (locator-input (read-string "Locator: "))
          (locator (increamemo-board--normalize-locator type locator-input))
@@ -153,7 +145,6 @@
   "Archive the current board row item and refresh."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (increamemo-domain-archive-item
    (plist-get (increamemo-board--current-item-required) :id)
    (increamemo-time-now))
@@ -163,7 +154,6 @@
   "Update the due date for the current board row item."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (let ((item (increamemo-board--current-item-required)))
     (increamemo-domain-update-due-date
      (plist-get item :id)
@@ -175,7 +165,6 @@
   "Update the priority for the current board row item."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (let ((item (increamemo-board--current-item-required)))
     (increamemo-domain-update-priority
      (plist-get item :id)
@@ -187,7 +176,6 @@
   "Open the current board row item."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (let ((item (increamemo-board--current-item-required)))
     (condition-case err
         (increamemo-opener-open-item item)
@@ -227,7 +215,6 @@
   "Open the board buffer."
   (interactive)
   (increamemo-config-require-ready)
-  (increamemo-migration-require-initialized)
   (let ((buffer (get-buffer-create increamemo-board-buffer-name)))
     (with-current-buffer buffer
       (unless (derived-mode-p 'increamemo-board-mode)
