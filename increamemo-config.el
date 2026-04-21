@@ -87,7 +87,7 @@
   (unless
       (increamemo-config--valid-invalid-opener-policy-p
        increamemo-invalid-opener-policy)
-    (user-error "Increamemo: invalid invalid opener policy: %S"
+    (user-error "Increamemo: invalid opener policy: %S"
                 increamemo-invalid-opener-policy))
   (unless (or (null increamemo-initial-due-date-function)
               (functionp increamemo-initial-due-date-function))

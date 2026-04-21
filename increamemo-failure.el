@@ -29,7 +29,7 @@ When OCCURRED-AT is nil, use the current timestamp."
        (increamemo-domain-record-open-failure item-id message-text occurred-at)
        (increamemo-domain-delete-item item-id occurred-at))
       (_
-       (user-error "Increamemo: invalid invalid opener policy: %S"
+       (user-error "Increamemo: invalid opener policy: %S"
                    increamemo-invalid-opener-policy)))))
 
 (provide 'increamemo-failure)

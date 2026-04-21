@@ -48,7 +48,14 @@
   "Readiness checks reject unknown invalid opener policies."
   (let ((increamemo-db-file "/tmp/increamemo.sqlite")
         (increamemo-invalid-opener-policy 'drop))
-    (should-error (increamemo-config-require-ready) :type 'user-error)))
+    (should
+     (equal
+      (condition-case err
+          (progn
+            (increamemo-config-require-ready)
+            nil)
+        (user-error (cadr err)))
+      "Increamemo: invalid opener policy: drop"))))
 
 (ert-deftest increamemo-config-require-ready-rejects-invalid-mode-line-function ()
   "Readiness checks reject non-callable mode line formatters."
