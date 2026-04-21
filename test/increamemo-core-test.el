@@ -7,7 +7,10 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'increamemo)
+(require 'increamemo-board)
+(require 'increamemo-work)
 (require 'increamemo-test-support)
 
 (ert-deftest increamemo-public-commands-require-database-config ()
@@ -43,6 +46,26 @@
     (should
      (equal (increamemo-test-support-schema-version increamemo-db-file)
             increamemo-migration-schema-version))))
+
+(ert-deftest increamemo-board-add-item-gates-config-before-prompting ()
+  "Board item creation checks configuration before asking for input."
+  (let ((increamemo-db-file nil)
+        (prompted nil))
+    (cl-letf (((symbol-function 'read-string)
+               (lambda (&rest _args)
+                 (setq prompted t)
+                 "ignored"))
+              ((symbol-function 'read-number)
+               (lambda (&rest _args)
+                 (setq prompted t)
+                 1)))
+      (should-error (increamemo-board-add-item) :type 'user-error)
+      (should-not prompted))))
+
+(ert-deftest increamemo-work-start-gates-config-before-runtime-setup ()
+  "Work runtime start checks configuration before creating a session."
+  (let ((increamemo-db-file nil))
+    (should-error (increamemo-work-start) :type 'user-error)))
 
 (provide 'increamemo-core-test)
 ;;; increamemo-core-test.el ends here

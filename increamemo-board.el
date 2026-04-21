@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'increamemo-config)
 (require 'increamemo-domain)
 (require 'increamemo-failure)
 (require 'increamemo-opener)
@@ -79,6 +80,7 @@
 (defun increamemo-board-refresh ()
   "Refresh the board entries for the current filter."
   (interactive)
+  (increamemo-config-require-ready)
   (let* ((items
           (increamemo-domain-list-planned
            increamemo-board--filter
@@ -118,6 +120,7 @@
 (defun increamemo-board-add-item ()
   "Prompt for item fields, persist the item, and refresh the board."
   (interactive)
+  (increamemo-config-require-ready)
   (let* ((type (read-string "Type: "))
          (locator-input (read-string "Locator: "))
          (locator (increamemo-board--normalize-locator type locator-input))
@@ -137,6 +140,7 @@
 (defun increamemo-board-archive-current-item ()
   "Archive the current board row item and refresh."
   (interactive)
+  (increamemo-config-require-ready)
   (increamemo-domain-archive-item
    (plist-get (increamemo-board--current-item-required) :id)
    (increamemo-time-now))
@@ -145,6 +149,7 @@
 (defun increamemo-board-update-current-due-date ()
   "Update the due date for the current board row item."
   (interactive)
+  (increamemo-config-require-ready)
   (let ((item (increamemo-board--current-item-required)))
     (increamemo-domain-update-due-date
      (plist-get item :id)
@@ -155,6 +160,7 @@
 (defun increamemo-board-update-current-priority ()
   "Update the priority for the current board row item."
   (interactive)
+  (increamemo-config-require-ready)
   (let ((item (increamemo-board--current-item-required)))
     (increamemo-domain-update-priority
      (plist-get item :id)
@@ -165,6 +171,7 @@
 (defun increamemo-board-open-current-item ()
   "Open the current board row item."
   (interactive)
+  (increamemo-config-require-ready)
   (let ((item (increamemo-board--current-item-required)))
     (condition-case err
         (increamemo-opener-open-item item)
