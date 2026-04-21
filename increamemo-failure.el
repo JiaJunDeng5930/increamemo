@@ -13,6 +13,24 @@
   "Return the user-visible message from OPEN-ERROR."
   (plist-get (car (cdr open-error)) :message))
 
+(defun increamemo-failure--missing-item-error-p (err)
+  "Return non-nil when ERR reports a missing scheduled item."
+  (and (eq (car err) 'user-error)
+       (string-match-p
+        "\\`Increamemo: item [0-9]+ does not exist\\'"
+        (error-message-string err))))
+
+(defun increamemo-failure--handle-delete-policy (item-id message-text occurred-at)
+  "Apply the delete failure policy for ITEM-ID with MESSAGE-TEXT at OCCURRED-AT."
+  (condition-case err
+      (progn
+        (increamemo-domain-record-open-failure item-id message-text occurred-at)
+        (increamemo-domain-delete-item item-id occurred-at))
+    (user-error
+     (if (increamemo-failure--missing-item-error-p err)
+         (increamemo-domain-delete-item item-id occurred-at)
+       (signal (car err) (cdr err))))))
+
 (defun increamemo-failure-handle-open-error (item open-error &optional occurred-at)
   "Apply the configured failure policy for ITEM and OPEN-ERROR.
 
@@ -26,8 +44,10 @@ When OCCURRED-AT is nil, use the current timestamp."
        (increamemo-domain-record-open-failure item-id message-text occurred-at)
        (increamemo-domain-archive-item item-id occurred-at))
       ('delete
-       (increamemo-domain-record-open-failure item-id message-text occurred-at)
-       (increamemo-domain-delete-item item-id occurred-at))
+       (increamemo-failure--handle-delete-policy
+        item-id
+        message-text
+        occurred-at))
       (_
        (user-error "Increamemo: invalid opener policy: %S"
                    increamemo-invalid-opener-policy)))))
