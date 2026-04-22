@@ -92,7 +92,11 @@
 (defun increamemo-config--valid-backends-p (backends)
   "Return non-nil when BACKENDS is a list of backend symbols."
   (and (listp backends)
-       (seq-every-p #'symbolp backends)))
+       (seq-every-p
+        (lambda (backend)
+          (and backend
+               (symbolp backend)))
+        backends)))
 
 (defun increamemo-config-require-ready ()
   "Return a configuration snapshot or raise `user-error'."

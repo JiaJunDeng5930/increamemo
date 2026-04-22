@@ -94,6 +94,12 @@
         (increamemo-backends '(increamemo-file-backend "ekg")))
     (should-error (increamemo-config-require-ready) :type 'user-error)))
 
+(ert-deftest increamemo-config-require-ready-rejects-nil-backend-entry ()
+  "Readiness checks reject backend lists containing nil."
+  (let ((increamemo-db-file "/tmp/increamemo.sqlite")
+        (increamemo-backends '(increamemo-file-backend nil)))
+    (should-error (increamemo-config-require-ready) :type 'user-error)))
+
 (ert-deftest increamemo-default-mode-line-format-renders-counts ()
   "The default formatter renders handled and remaining counts."
   (should (equal (increamemo-default-mode-line-format 3 12)

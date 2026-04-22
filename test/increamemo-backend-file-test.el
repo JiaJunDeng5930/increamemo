@@ -112,25 +112,25 @@
 (ert-deftest increamemo-backend-registry-loads-configured-backend-feature ()
   "Configured backends load their feature before resolving dispatch functions."
   (let* ((temp-dir (make-temp-file "increamemo-backend-feature-" t))
-         (feature-file (expand-file-name "increamemo-temp-backend.el" temp-dir))
+         (feature-file (expand-file-name "increamemo-backend-temp.el" temp-dir))
          (load-path (cons temp-dir load-path))
          (increamemo-backends '(increamemo-temp-backend)))
     (unwind-protect
         (progn
           (with-temp-file feature-file
-            (insert ";;; increamemo-temp-backend.el --- temp backend -*- lexical-binding: t; -*-\n")
+            (insert ";;; increamemo-backend-temp.el --- temp backend -*- lexical-binding: t; -*-\n")
             (insert "(defun increamemo-temp-backend-recognize-current (_buffer)\n")
             (insert "  (list :type \"temp\" :locator \"loaded\" :opener 'temp-open :title-snapshot \"Loaded\"))\n")
             (insert "(defun increamemo-temp-backend-build-source-ref (type locator &optional opener)\n")
             (insert "  (when (string= type \"temp\")\n")
             (insert "    (list :type type :locator locator :opener (or opener 'temp-open) :title-snapshot \"Manual\")))\n")
-            (insert "(provide 'increamemo-temp-backend)\n"))
+            (insert "(provide 'increamemo-backend-temp)\n"))
           (let ((recognized (increamemo-backend-identify-current (current-buffer)))
                 (manual (increamemo-backend-build-source-ref "temp" "manual")))
             (should (equal (plist-get recognized :locator) "loaded"))
             (should (eq (plist-get manual :opener) 'temp-open))))
       (ignore-errors
-        (unload-feature 'increamemo-temp-backend t))
+        (unload-feature 'increamemo-backend-temp t))
       (delete-directory temp-dir t))))
 
 (ert-deftest increamemo-backend-build-source-ref-normalizes-manual-file-entry ()
