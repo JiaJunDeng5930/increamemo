@@ -26,6 +26,46 @@
 
 ;;; Code:
 
+(require 'calendar)
+
+(defconst increamemo-time--date-regexp
+  "\\`[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\'"
+  "Regexp used to validate ISO date strings.")
+
+(defun increamemo-time--parse-date (value)
+  "Return VALUE as a Gregorian date list, or nil when invalid."
+  (when (and (stringp value)
+             (string-match-p increamemo-time--date-regexp value))
+    (let* ((year (string-to-number (substring value 0 4)))
+           (month (string-to-number (substring value 5 7)))
+           (day (string-to-number (substring value 8 10))))
+      (when (and (<= 1 month)
+                 (<= month 12)
+                 (<= 1 day)
+                 (<= day (calendar-last-day-of-month month year)))
+        (list month day year)))))
+
+(defun increamemo-time--format-date (gregorian-date)
+  "Return GREGORIAN-DATE formatted as an ISO date string."
+  (pcase-let ((`(,month ,day ,year) gregorian-date))
+    (format "%04d-%02d-%02d" year month day)))
+
+(defun increamemo-time-valid-date-p (value)
+  "Return non-nil when VALUE is a valid ISO date string."
+  (and (increamemo-time--parse-date value) t))
+
+(defun increamemo-time-add-days (date days)
+  "Return DATE plus DAYS as an ISO date string."
+  (let ((gregorian-date (increamemo-time--parse-date date)))
+    (unless gregorian-date
+      (user-error "Increamemo: invalid due date: %S" date))
+    (unless (integerp days)
+      (user-error "Increamemo: invalid day offset: %S" days))
+    (increamemo-time--format-date
+     (calendar-gregorian-from-absolute
+      (+ (calendar-absolute-from-gregorian gregorian-date)
+         days)))))
+
 (defun increamemo-time-today (&optional time-value)
   "Return TIME-VALUE as an ISO date, or today's date when omitted."
   (format-time-string "%F" time-value))

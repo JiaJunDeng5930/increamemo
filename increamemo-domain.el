@@ -31,10 +31,6 @@
 (require 'increamemo-storage)
 (require 'increamemo-time)
 
-(defconst increamemo-domain--date-regexp
-  "\\`[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\'"
-  "Regexp used to validate ISO date strings.")
-
 (defconst increamemo-domain--timestamp-regexp
   (concat
    "\\`[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}"
@@ -65,24 +61,9 @@
   "Return the configured database file."
   (plist-get (increamemo-config-require-ready) :db-file))
 
-(defun increamemo-domain--valid-date-p (value)
-  "Return non-nil when VALUE is a valid ISO date string."
-  (and (stringp value)
-       (string-match-p increamemo-domain--date-regexp value)
-       (let* ((year (string-to-number (substring value 0 4)))
-              (month (string-to-number (substring value 5 7)))
-              (day (string-to-number (substring value 8 10))))
-         (condition-case nil
-             (string= value
-                      (format-time-string
-                       "%F"
-                       (encode-time 0 0 0 day month year nil)
-                       t))
-           (error nil)))))
-
 (defun increamemo-domain--require-date (value)
   "Return VALUE when it is a valid ISO date string."
-  (unless (increamemo-domain--valid-date-p value)
+  (unless (increamemo-time-valid-date-p value)
     (user-error "Increamemo: invalid due date: %S" value))
   value)
 

@@ -145,5 +145,19 @@
       (should (equal (increamemo-time-now time-value)
                      "2026-04-21T09:08:07+00:00")))))
 
+(ert-deftest increamemo-time-valid-date-p-treats-iso-date-as-calendar-date ()
+  "Date validation keeps ISO dates valid in positive-offset time zones."
+  (increamemo-test-with-time-zone "Asia/Shanghai"
+    (should (increamemo-time-valid-date-p "2026-04-22"))
+    (should-not (increamemo-time-valid-date-p "2026-02-30"))))
+
+(ert-deftest increamemo-time-add-days-uses-calendar-semantics ()
+  "Date arithmetic advances calendar dates without UTC drift."
+  (increamemo-test-with-time-zone "Asia/Shanghai"
+    (should (equal (increamemo-time-add-days "2026-04-21" 1)
+                   "2026-04-22"))
+    (should (equal (increamemo-time-add-days "2024-02-28" 1)
+                   "2024-02-29"))))
+
 (provide 'increamemo-config-time-test)
 ;;; increamemo-config-time-test.el ends here

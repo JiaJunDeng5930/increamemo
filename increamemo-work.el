@@ -120,23 +120,15 @@
   (increamemo-work-mode -1)
   (increamemo-work--clear-buffer-state))
 
-(defun increamemo-work--date-add-days (date days)
-  "Return DATE plus DAYS as an ISO date string."
-  (let* ((year (string-to-number (substring date 0 4)))
-         (month (string-to-number (substring date 5 7)))
-         (day (string-to-number (substring date 8 10)))
-         (base-time (encode-time 0 0 0 day month year nil)))
-    (format-time-string "%F" (time-add base-time (days-to-time days)) t)))
-
 (defun increamemo-work--parse-defer-date (input base-date)
   "Return a due date parsed from INPUT using BASE-DATE.
 
 INPUT accepts either an ISO date or a positive day offset."
   (cond
-   ((string-match-p increamemo-domain--date-regexp input)
+   ((increamemo-time-valid-date-p input)
     input)
    ((string-match increamemo-work--day-offset-regexp input)
-    (increamemo-work--date-add-days
+    (increamemo-time-add-days
      base-date
      (string-to-number (match-string 1 input))))
    (t
