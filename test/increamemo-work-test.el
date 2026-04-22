@@ -36,8 +36,7 @@
 (defun increamemo-work-test--source-ref (path)
   "Return a file source ref for PATH."
   (list :type "file"
-        :locator path
-        :opener 'find-file
+        :path path
         :title-snapshot (file-name-nondirectory path)))
 
 (defun increamemo-work-test--write-note (root name contents)
@@ -188,7 +187,10 @@
                               (car
                                (increamemo-test-support-select-row
                                 increamemo-db-file
-                                "SELECT state FROM increamemo_items WHERE locator = ?"
+                                (concat
+                                 "SELECT i.state FROM increamemo_items i "
+                                 "JOIN increamemo_file_items f ON f.item_id = i.id "
+                                 "WHERE f.path = ?")
                                 (list archive-path)))
                               "archived")))
                         (when (buffer-live-p next-buffer)
@@ -250,7 +252,10 @@
                               (car
                                (increamemo-test-support-select-row
                                 increamemo-db-file
-                                "SELECT next_due_date FROM increamemo_items WHERE locator = ?"
+                                (concat
+                                 "SELECT i.next_due_date FROM increamemo_items i "
+                                 "JOIN increamemo_file_items f ON f.item_id = i.id "
+                                 "WHERE f.path = ?")
                                 (list defer-path)))
                               "2026-04-24")))
                         (when (buffer-live-p next-buffer)
@@ -305,8 +310,11 @@
                        (equal
                         (car
                          (increamemo-test-support-select-row
-                          increamemo-db-file
-                          "SELECT state FROM increamemo_items WHERE locator = ?"
+                         increamemo-db-file
+                          (concat
+                           "SELECT i.state FROM increamemo_items i "
+                           "JOIN increamemo_file_items f ON f.item_id = i.id "
+                           "WHERE f.path = ?")
                           (list skip-path)))
                         "active"))
                       (should (= 1
@@ -319,7 +327,10 @@
                                    (car
                                     (increamemo-test-support-select-row
                                      increamemo-db-file
-                                     "SELECT id FROM increamemo_items WHERE locator = ?"
+                                     (concat
+                                      "SELECT i.id FROM increamemo_items i "
+                                      "JOIN increamemo_file_items f ON f.item_id = i.id "
+                                      "WHERE f.path = ?")
                                      (list skip-path)))))))
                       (with-current-buffer next-buffer
                         (increamemo-work-quit))
@@ -368,7 +379,10 @@
                     (car
                      (increamemo-test-support-select-row
                       increamemo-db-file
-                      "SELECT priority FROM increamemo_items WHERE locator = ?"
+                      (concat
+                       "SELECT i.priority FROM increamemo_items i "
+                       "JOIN increamemo_file_items f ON f.item_id = i.id "
+                       "WHERE f.path = ?")
                       (list priority-path)))
                     5))
                   (increamemo-work-quit))
@@ -491,7 +505,10 @@
                     (car
                      (increamemo-test-support-select-row
                       increamemo-db-file
-                      "SELECT next_due_date FROM increamemo_items WHERE locator = ?"
+                      (concat
+                       "SELECT i.next_due_date FROM increamemo_items i "
+                       "JOIN increamemo_file_items f ON f.item_id = i.id "
+                       "WHERE f.path = ?")
                       (list second-path)))
                     "2026-04-28"))))))
         (when (buffer-live-p next-buffer)

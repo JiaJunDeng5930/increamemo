@@ -29,7 +29,7 @@
 (require 'increamemo-config)
 (require 'increamemo-storage)
 
-(defconst increamemo-migration-schema-version "1"
+(defconst increamemo-migration-schema-version "2"
   "Current increamemo schema version.")
 
 (defconst increamemo-migration--schema-statements
@@ -40,8 +40,6 @@
     "CREATE TABLE IF NOT EXISTS increamemo_items (
        id INTEGER PRIMARY KEY AUTOINCREMENT,
        type TEXT NOT NULL,
-       locator TEXT NOT NULL,
-       opener TEXT NOT NULL,
        title_snapshot TEXT,
        next_due_date TEXT NOT NULL,
        priority INTEGER NOT NULL,
@@ -50,8 +48,17 @@
        updated_at TEXT NOT NULL,
        last_reviewed_at TEXT,
        last_error TEXT,
-       custom_json TEXT,
        version INTEGER NOT NULL DEFAULT 0
+     )"
+    "CREATE TABLE IF NOT EXISTS increamemo_file_items (
+       item_id INTEGER PRIMARY KEY,
+       path TEXT NOT NULL,
+       FOREIGN KEY(item_id) REFERENCES increamemo_items(id)
+     )"
+    "CREATE TABLE IF NOT EXISTS increamemo_ekg_items (
+       item_id INTEGER PRIMARY KEY,
+       note_id TEXT NOT NULL,
+       FOREIGN KEY(item_id) REFERENCES increamemo_items(id)
      )"
     "CREATE TABLE IF NOT EXISTS increamemo_history (
        id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,14 +75,11 @@
        FOREIGN KEY(item_id) REFERENCES increamemo_items(id)
      )"
     "CREATE INDEX IF NOT EXISTS increamemo_items_due_idx
-       ON increamemo_items(state, next_due_date, priority, created_at)"
-    "CREATE UNIQUE INDEX IF NOT EXISTS increamemo_items_live_locator_idx
-       ON increamemo_items(type, locator)
-       WHERE state IN ('active', 'invalid')")
+       ON increamemo_items(state, next_due_date, priority, created_at)")
   "Statements required for the initial schema.")
 
 (defconst increamemo-migration--upgrade-steps
-  '(("0" . increamemo-migration--upgrade-from-0))
+  nil
   "Migration functions keyed by their source schema version.")
 
 (defun increamemo-migration--table-exists-p (connection table-name)
@@ -111,10 +115,6 @@
      connection
      increamemo-migration-schema-version)))
 
-(defun increamemo-migration--upgrade-from-0 (connection)
-  "Upgrade schema version 0 on CONNECTION to the current version."
-  (increamemo-migration--ensure-current-schema connection))
-
 (defun increamemo-migration--upgrade-schema (connection version)
   "Upgrade schema VERSION on CONNECTION to the current version."
   (let ((current-version version))
@@ -144,7 +144,8 @@
               db-file)
              ((< (string-to-number version)
                  (string-to-number increamemo-migration-schema-version))
-              (increamemo-migration--upgrade-schema connection version))
+              (user-error
+               "Increamemo: database schema is outdated; delete the database and run `increamemo-init'"))
              (t
              (user-error
                "Increamemo: schema version %s is unsupported"

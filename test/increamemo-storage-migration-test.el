@@ -63,8 +63,8 @@
               "SELECT value FROM entries LIMIT 1")))
         (increamemo-storage-close connection)))))
 
-(ert-deftest increamemo-init-upgrades-known-older-schema ()
-  "Initialization upgrades a supported older schema in place."
+(ert-deftest increamemo-init-rejects-outdated-schema-version ()
+  "Initialization rejects outdated schemas that require a fresh database."
   (increamemo-test-support-with-temp-db
     (let ((connection (increamemo-storage-open increamemo-db-file)))
       (unwind-protect
@@ -78,19 +78,9 @@
             (increamemo-storage-execute
              connection
              "INSERT INTO increamemo_meta(key, value) VALUES(?, ?)"
-             '("schema-version" "0")))
+             '("schema-version" "1")))
         (increamemo-storage-close connection)))
-    (increamemo-init)
-    (should
-     (equal (increamemo-test-support-schema-version increamemo-db-file)
-            increamemo-migration-schema-version))
-    (dolist (table-name '("increamemo_meta"
-                          "increamemo_items"
-                          "increamemo_history"))
-      (should
-       (increamemo-test-support-table-exists-p
-        increamemo-db-file
-        table-name)))))
+    (should-error (increamemo-init) :type 'user-error)))
 
 (ert-deftest increamemo-init-rejects-newer-schema-version ()
   "Initialization stops when the database schema is newer than supported."

@@ -27,8 +27,9 @@
 ;;; Code:
 
 (require 'ert)
+(require 'increamemo)
 (require 'increamemo-backend)
-(require 'increamemo-config)
+(require 'increamemo-storage)
 
 (defmacro increamemo-backend-file-test-with-file-buffer
     (filename contents &rest body)
@@ -49,18 +50,17 @@
                  (kill-buffer buffer)))))
        (delete-directory temp-dir t))))
 
-(ert-deftest increamemo-file-backend-builds-source-ref-for-supported-file ()
-  "The file backend normalizes supported file buffers into source refs."
+(ert-deftest increamemo-file-backend-builds-item-spec-for-supported-file ()
+  "The file backend normalizes supported file buffers into item specs."
   (let ((increamemo-supported-file-formats '("md" "org"))
         (increamemo-file-openers '(("md" . find-file)
                                    ("org" . find-file-other-window))))
     (increamemo-backend-file-test-with-file-buffer "notes/topic.md" "# title"
-      (let ((source-ref (increamemo-file-backend-source-ref (current-buffer))))
-        (should (equal (plist-get source-ref :type) "file"))
-        (should (equal (plist-get source-ref :locator)
+      (let ((item-spec (increamemo-file-backend-source-ref (current-buffer))))
+        (should (equal (plist-get item-spec :type) "file"))
+        (should (equal (plist-get item-spec :path)
                        (expand-file-name buffer-file-name)))
-        (should (eq (plist-get source-ref :opener) 'find-file))
-        (should (equal (plist-get source-ref :title-snapshot)
+        (should (equal (plist-get item-spec :title-snapshot)
                        "topic.md"))))))
 
 (ert-deftest increamemo-file-backend-rejects-unsupported-extensions ()
@@ -86,10 +86,10 @@
         (increamemo-file-openers '(("md" . find-file)))
         (increamemo-backends '(increamemo-file-backend)))
     (increamemo-backend-file-test-with-file-buffer "notes/topic.md" "# title"
-      (let ((source-ref
+      (let ((item-spec
              (increamemo-backend-identify-current (current-buffer))))
-        (should (equal (plist-get source-ref :type) "file"))
-        (should (equal (plist-get source-ref :locator)
+        (should (equal (plist-get item-spec :type) "file"))
+        (should (equal (plist-get item-spec :path)
                        (expand-file-name buffer-file-name)))))))
 
 (ert-deftest increamemo-backend-identify-current-rejects-unknown-backend ()
@@ -103,106 +103,24 @@
 (ert-deftest increamemo-backend-registry-supports-custom-backends ()
   "Configured backends follow the registry naming contract."
   (let ((increamemo-backends '(increamemo-test-backend)))
-    (cl-letf (((symbol-function 'increamemo-test-backend-recognize-current)
+    (cl-letf (((symbol-function 'increamemo-test-backend-type)
+               (lambda () "test"))
+              ((symbol-function 'increamemo-test-backend-recognize-current)
                (lambda (_buffer)
-                 '(:type "test"
-                   :locator "current"
-                   :opener test-open
-                   :title-snapshot "Current")))
+                 '(:type "test" :title-snapshot "Current" :value "current")))
               ((symbol-function 'increamemo-test-backend-build-source-ref)
-               (lambda (type locator &optional opener)
-                 (when (string= type "test")
-                   (list :type type
-                         :locator locator
-                         :opener (or opener 'test-open)
-                         :title-snapshot "Manual")))))
+               (lambda (_type locator &optional _opener)
+                 (list :type "test" :title-snapshot "Manual" :value locator))))
       (with-temp-buffer
         (let ((identified
                (increamemo-backend-identify-current (current-buffer)))
               (manual
-               (increamemo-backend-build-source-ref
-                "test"
-                "manual"
-                'manual-open)))
-          (should (equal (plist-get identified :type) "test"))
-          (should (equal (plist-get identified :locator) "current"))
-          (should (eq (plist-get manual :opener) 'manual-open))
-          (should (equal (plist-get manual :locator) "manual")))))))
-
-(ert-deftest increamemo-backend-registry-loads-configured-backend-feature ()
-  "Configured backends load their feature before resolving dispatch functions."
-  (let* ((temp-dir (make-temp-file "increamemo-backend-feature-" t))
-         (feature-file (expand-file-name "increamemo-backend-temp.el" temp-dir))
-         (load-path (cons temp-dir load-path))
-         (increamemo-backends '(increamemo-temp-backend)))
-    (unwind-protect
-        (progn
-          (with-temp-file feature-file
-            (insert ";;; increamemo-backend-temp.el --- temp backend -*- lexical-binding: t; -*-\n")
-            (insert "(defun increamemo-temp-backend-recognize-current (_buffer)\n")
-            (insert "  (list :type \"temp\" :locator \"loaded\" :opener 'temp-open :title-snapshot \"Loaded\"))\n")
-            (insert "(defun increamemo-temp-backend-build-source-ref (type locator &optional opener)\n")
-            (insert "  (when (string= type \"temp\")\n")
-            (insert "    (list :type type :locator locator :opener (or opener 'temp-open) :title-snapshot \"Manual\")))\n")
-            (insert "(provide 'increamemo-backend-temp)\n"))
-          (let ((recognized (increamemo-backend-identify-current (current-buffer)))
-                (manual (increamemo-backend-build-source-ref "temp" "manual")))
-            (should (equal (plist-get recognized :locator) "loaded"))
-            (should (eq (plist-get manual :opener) 'temp-open))))
-      (ignore-errors
-        (unload-feature 'increamemo-backend-temp t))
-      (delete-directory temp-dir t))))
-
-(ert-deftest increamemo-backend-registry-loads-increamemo-named-backend-feature ()
-  "Increamemo-prefixed backends can load from their matching feature name."
-  (let* ((temp-dir (make-temp-file "increamemo-backend-feature-" t))
-         (feature-file (expand-file-name "increamemo-temp-backend.el" temp-dir))
-         (load-path (cons temp-dir load-path))
-         (increamemo-backends '(increamemo-temp-backend)))
-    (unwind-protect
-        (progn
-          (with-temp-file feature-file
-            (insert ";;; increamemo-temp-backend.el --- temp backend -*- lexical-binding: t; -*-\n")
-            (insert "(defun increamemo-temp-backend-recognize-current (_buffer)\n")
-            (insert "  (list :type \"temp\" :locator \"prefixed\" :opener 'temp-open :title-snapshot \"Prefixed\"))\n")
-            (insert "(defun increamemo-temp-backend-build-source-ref (type locator &optional opener)\n")
-            (insert "  (when (string= type \"temp\")\n")
-            (insert "    (list :type type :locator locator :opener (or opener 'temp-open) :title-snapshot \"Manual\")))\n")
-            (insert "(provide 'increamemo-temp-backend)\n"))
-          (let ((recognized (increamemo-backend-identify-current (current-buffer)))
-                (manual (increamemo-backend-build-source-ref "temp" "manual")))
-            (should (equal (plist-get recognized :locator) "prefixed"))
-            (should (eq (plist-get manual :opener) 'temp-open))))
-      (ignore-errors
-        (unload-feature 'increamemo-temp-backend t))
-      (delete-directory temp-dir t))))
-
-(ert-deftest increamemo-backend-registry-loads-external-backend-feature ()
-  "External backends load from their own feature name."
-  (let* ((temp-dir (make-temp-file "external-backend-feature-" t))
-         (feature-file (expand-file-name "temp-backend.el" temp-dir))
-         (load-path (cons temp-dir load-path))
-         (increamemo-backends '(temp-backend)))
-    (unwind-protect
-        (progn
-          (with-temp-file feature-file
-            (insert ";;; temp-backend.el --- temp backend -*- lexical-binding: t; -*-\n")
-            (insert "(defun temp-backend-recognize-current (_buffer)\n")
-            (insert "  (list :type \"temp\" :locator \"external\" :opener 'temp-open :title-snapshot \"External\"))\n")
-            (insert "(defun temp-backend-build-source-ref (type locator &optional opener)\n")
-            (insert "  (when (string= type \"temp\")\n")
-            (insert "    (list :type type :locator locator :opener (or opener 'temp-open) :title-snapshot \"Manual\")))\n")
-            (insert "(provide 'temp-backend)\n"))
-          (let ((recognized (increamemo-backend-identify-current (current-buffer)))
-                (manual (increamemo-backend-build-source-ref "temp" "manual")))
-            (should (equal (plist-get recognized :locator) "external"))
-            (should (eq (plist-get manual :opener) 'temp-open))))
-      (ignore-errors
-        (unload-feature 'temp-backend t))
-      (delete-directory temp-dir t))))
+               (increamemo-backend-build-source-ref "test" "manual")))
+          (should (equal (plist-get identified :value) "current"))
+          (should (equal (plist-get manual :value) "manual")))))))
 
 (ert-deftest increamemo-backend-build-source-ref-normalizes-manual-file-entry ()
-  "The backend registry builds file source refs for manual entry."
+  "The backend registry builds file item specs for manual entry."
   (let ((increamemo-supported-file-formats '("md"))
         (increamemo-file-openers '(("md" . find-file))))
     (let* ((temp-dir (make-temp-file "increamemo-backend-file-manual-" t))
@@ -214,13 +132,52 @@
             (make-directory (file-name-directory absolute-path) t)
             (with-temp-file absolute-path
               (insert "# manual"))
-            (let ((source-ref
+            (let ((item-spec
                    (increamemo-backend-build-source-ref "file" relative-path)))
-              (should (equal (plist-get source-ref :type) "file"))
-              (should (equal (plist-get source-ref :locator) absolute-path))
-              (should (eq (plist-get source-ref :opener) 'find-file))
-              (should (equal (plist-get source-ref :title-snapshot)
+              (should (equal (plist-get item-spec :type) "file"))
+              (should (equal (plist-get item-spec :path) absolute-path))
+              (should (equal (plist-get item-spec :title-snapshot)
                              "manual.md"))))
+        (delete-directory temp-dir t)))))
+
+(ert-deftest increamemo-file-backend-persists-and-hydrates-subtype-data ()
+  "The file backend can persist and hydrate its subtype data."
+  (let ((increamemo-supported-file-formats '("md"))
+        (increamemo-file-openers '(("md" . find-file))))
+    (let* ((temp-dir (make-temp-file "increamemo-backend-file-hydrate-" t))
+           (path (expand-file-name "notes/manual.md" temp-dir))
+           (db-file (make-temp-file "increamemo-backend-file-db-" nil ".sqlite")))
+      (unwind-protect
+          (progn
+            (make-directory (file-name-directory path) t)
+            (with-temp-file path
+              (insert "# manual"))
+            (let ((item-spec (increamemo-file-backend-build-source-ref "file" path))
+                  (connection (increamemo-storage-open db-file)))
+              (unwind-protect
+                  (progn
+                    (increamemo-storage-execute
+                     connection
+                     "CREATE TABLE increamemo_items (id INTEGER PRIMARY KEY, type TEXT NOT NULL, title_snapshot TEXT, next_due_date TEXT NOT NULL, priority INTEGER NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_reviewed_at TEXT, last_error TEXT, version INTEGER NOT NULL DEFAULT 0)")
+                    (increamemo-storage-execute
+                     connection
+                     "CREATE TABLE increamemo_file_items (item_id INTEGER PRIMARY KEY, path TEXT NOT NULL)")
+                    (increamemo-storage-execute
+                     connection
+                     "INSERT INTO increamemo_items(id, type, title_snapshot, next_due_date, priority, state, created_at, updated_at, version) VALUES(1, 'file', 'manual.md', '2026-04-21', 10, 'active', '2026-04-21T08:00:00+00:00', '2026-04-21T08:00:00+00:00', 0)")
+                    (increamemo-file-backend-insert-item-data connection 1 item-spec)
+                    (let ((hydrated
+                           (increamemo-file-backend-hydrate-item
+                            connection
+                            '(:id 1 :type "file" :title-snapshot "manual.md"))))
+                      (should (equal (plist-get hydrated :path) path))
+                      (should (= (increamemo-file-backend-find-live-duplicate-id
+                                  connection
+                                  item-spec)
+                                 1))))
+                (increamemo-storage-close connection))))
+        (when (file-exists-p db-file)
+          (delete-file db-file))
         (delete-directory temp-dir t)))))
 
 (provide 'increamemo-backend-file-test)

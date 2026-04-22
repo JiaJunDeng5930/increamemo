@@ -31,25 +31,23 @@
 (require 'increamemo-domain)
 (require 'increamemo-test-support)
 
-(defun increamemo-domain-test--source-ref (locator)
-  "Build a file source reference for LOCATOR."
+(defun increamemo-domain-test--source-ref (path)
+  "Build a file item spec for PATH."
   (list :type "file"
-        :locator locator
-        :opener 'find-file
-        :title-snapshot (file-name-nondirectory locator)))
+        :path path
+        :title-snapshot (file-name-nondirectory path)))
 
 (ert-deftest increamemo-domain-ensure-item-creates-active-item-and-history ()
   "Ensuring a new item creates one active row and one created history row."
   (increamemo-test-support-with-temp-db
     (increamemo-init)
-    (let ((item (increamemo-domain-ensure-item
+      (let ((item (increamemo-domain-ensure-item
                  (increamemo-domain-test--source-ref "/tmp/notes/alpha.md")
                  10
                  "2026-04-21"
                  "2026-04-21T08:00:00+00:00")))
       (should (equal (plist-get item :type) "file"))
-      (should (equal (plist-get item :locator) "/tmp/notes/alpha.md"))
-      (should (equal (plist-get item :opener) "find-file"))
+      (should (equal (plist-get item :path) "/tmp/notes/alpha.md"))
       (should (equal (plist-get item :state) "active"))
       (should (equal (plist-get item :next-due-date) "2026-04-21"))
       (should (= (plist-get item :priority) 10))
@@ -117,7 +115,7 @@
            (items (increamemo-domain-list-due
                    "2026-04-21"
                    (list (plist-get first :id)))))
-      (should (equal (mapcar (lambda (item) (plist-get item :locator)) items)
+      (should (equal (mapcar (lambda (item) (plist-get item :path)) items)
                      '("/tmp/notes/third.md"
                        "/tmp/notes/second.md"))))))
 

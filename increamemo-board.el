@@ -77,9 +77,7 @@
       (or (plist-get item :next-due-date) "")
       (number-to-string (plist-get item :priority))
       (plist-get item :state)
-      (plist-get item :opener)
-      (or (plist-get item :title-snapshot) "")
-      (plist-get item :locator)))))
+      (or (plist-get item :title-snapshot) "")))))
 
 (defun increamemo-board--today ()
   "Return today's date for board filtering."
@@ -91,12 +89,6 @@
                    (increamemo-backend-supported-types)
                    nil
                    t))
-
-(defun increamemo-board--read-locator (type)
-  "Prompt for a locator for TYPE."
-  (if (equal type "file")
-      (read-file-name "Locator (file path): " nil nil t)
-    (read-string "Locator: ")))
 
 (defun increamemo-board--current-item ()
   "Return the item snapshot for the current board row."
@@ -187,27 +179,12 @@
   "Prompt for item fields, persist the item, and refresh the board."
   (interactive)
   (increamemo-config-require-ready)
-  (let* ((type (increamemo-board--read-type))
-         (locator (increamemo-board--read-locator type))
-         (draft-source-ref
-          (increamemo-backend-build-source-ref type locator))
-         (default-opener
-          (let ((value (plist-get draft-source-ref :opener)))
-            (if (symbolp value)
-                (symbol-name value)
-              value)))
-         (opener-input (read-string "Opener: " nil nil default-opener))
-         (source-ref
-          (increamemo-backend-build-source-ref
-           type
-           locator
-           (if (> (length opener-input) 0)
-               opener-input
-             default-opener)))
-         (priority (read-number increamemo-board--priority-prompt))
-         (due-date (read-string increamemo-board--due-date-prompt)))
+  (let* ((priority (read-number increamemo-board--priority-prompt))
+         (due-date (read-string increamemo-board--due-date-prompt))
+         (type (increamemo-board--read-type))
+         (item-spec (increamemo-backend-prompt-new-item type)))
     (increamemo-domain-ensure-item
-     source-ref
+     item-spec
      priority
      due-date
      (increamemo-time-now))
@@ -285,9 +262,7 @@
          ("Due Date" 12 t)
          ("Priority" 10 t)
          ("State" 10 t)
-         ("Opener" 20 t)
-         ("Title" 24 t)
-         ("Locator" 32 t)])
+         ("Title" 48 t)])
   (setq tabulated-list-padding 2)
   (setq increamemo-board--filter 'planned)
   (setq increamemo-board--items nil)

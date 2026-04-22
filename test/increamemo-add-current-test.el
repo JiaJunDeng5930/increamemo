@@ -56,12 +56,13 @@
                  (increamemo-test-support-select-row
                   increamemo-db-file
                   (concat
-                   "SELECT type, locator, opener, next_due_date, priority, state "
-                   "FROM increamemo_items LIMIT 1"))))
+                   "SELECT i.type, f.path, i.next_due_date, i.priority, i.state "
+                   "FROM increamemo_items i "
+                   "JOIN increamemo_file_items f ON f.item_id = i.id "
+                   "LIMIT 1"))))
             (should (equal row
                            (list "file"
                                  (expand-file-name buffer-file-name)
-                                 "find-file"
                                  "2026-04-21"
                                  10
                                  "active"))))

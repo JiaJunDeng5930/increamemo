@@ -37,8 +37,7 @@
 (defun increamemo-complete-test--source-ref (path)
   "Return a file source ref for PATH."
   (list :type "file"
-        :locator path
-        :opener 'find-file
+        :path path
         :title-snapshot (file-name-nondirectory path)))
 
 (ert-deftest increamemo-policy-compute-next-due-date-validates-callback-result ()
@@ -85,8 +84,7 @@
       (let* ((item
               (increamemo-domain-ensure-item
                (list :type "file"
-                     :locator "/tmp/topic.md"
-                     :opener 'find-file
+                     :path "/tmp/topic.md"
                      :title-snapshot "topic.md")
                10
                "2026-04-21"
@@ -131,8 +129,7 @@
       (let* ((item
               (increamemo-domain-ensure-item
                (list :type "file"
-                     :locator "/tmp/history-topic.md"
-                     :opener 'find-file
+                     :path "/tmp/history-topic.md"
                      :title-snapshot "history-topic.md")
                10
                "2026-04-21"
@@ -160,8 +157,7 @@
       (let* ((item
               (increamemo-domain-ensure-item
                (list :type "file"
-                     :locator "/tmp/topic.md"
-                     :opener 'find-file
+                     :path "/tmp/topic.md"
                      :title-snapshot "topic.md")
                10
                "2026-04-24"
@@ -233,8 +229,7 @@
       (let* ((item
               (increamemo-domain-ensure-item
                (list :type "file"
-                     :locator "/tmp/topic.md"
-                     :opener 'find-file
+                     :path "/tmp/topic.md"
                      :title-snapshot "topic.md")
                10
                "2026-04-21"
@@ -273,9 +268,8 @@
            (lambda (_item _action _history-summary _today) "2026-04-28")))
       (let* ((item
               (increamemo-domain-ensure-item
-               (list :type "file"
-                     :locator "/tmp/topic-stale.md"
-                     :opener 'find-file
+              (list :type "file"
+                     :path "/tmp/topic-stale.md"
                      :title-snapshot "topic-stale.md")
                10
                "2026-04-21"

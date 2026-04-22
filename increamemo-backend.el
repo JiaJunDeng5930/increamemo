@@ -22,10 +22,11 @@
 
 ;;; Commentary:
 
-;; Backend registry and source-ref dispatch.
+;; Backend registry and type-specific dispatch.
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'subr-x)
 (require 'increamemo-backend-ekg)
 (require 'increamemo-backend-file)
@@ -48,9 +49,7 @@
                  (string-remove-prefix "increamemo-" backend-name))))))))))
 
 (defun increamemo-backend--function (backend suffix)
-  "Return BACKEND function named by SUFFIX.
-
-BACKEND follows the registry contract exposed by `increamemo-backends'."
+  "Return BACKEND function named by SUFFIX."
   (unless (symbolp backend)
     (user-error "Increamemo: invalid backend: %S" backend))
   (dolist (feature (increamemo-backend--features backend))
@@ -66,55 +65,112 @@ BACKEND follows the registry contract exposed by `increamemo-backends'."
   "Return the recognizer function for BACKEND."
   (increamemo-backend--function backend "recognize-current"))
 
-(defun increamemo-backend--builder (backend)
-  "Return the manual source-ref builder for BACKEND."
-  (increamemo-backend--function backend "build-source-ref"))
+(defun increamemo-backend--type-function (backend)
+  "Return the type function for BACKEND."
+  (increamemo-backend--function backend "type"))
 
-(defun increamemo-backend--type (backend)
-  "Return the item type string implemented by BACKEND."
-  (let* ((backend-name (symbol-name backend))
-         (type-function
-          (intern-soft (format "%s-type" backend))))
-    (cond
-     ((fboundp type-function)
-      (funcall type-function))
-     ((and (string-prefix-p "increamemo-" backend-name)
-           (string-suffix-p "-backend" backend-name))
-      (string-remove-suffix
-       "-backend"
-       (string-remove-prefix "increamemo-" backend-name)))
-     (t
-      (user-error "Increamemo: cannot derive type for backend: %S" backend)))))
+(defun increamemo-backend--prompt-function (backend)
+  "Return the manual prompt function for BACKEND."
+  (increamemo-backend--function backend "prompt-new-item"))
 
-(defun increamemo-backend-identify-current (&optional buffer)
-  "Return a source ref for BUFFER using the configured backends."
-  (let ((target-buffer (or buffer (current-buffer)))
-        (source-ref nil))
-    (dolist (backend increamemo-backends)
-      (unless source-ref
-        (setq source-ref
-              (funcall (increamemo-backend--recognizer backend)
-                       target-buffer))))
-    (or source-ref
-        (user-error "Increamemo: no backend recognized the current buffer"))))
+(defun increamemo-backend--duplicate-function (backend)
+  "Return the duplicate lookup function for BACKEND."
+  (increamemo-backend--function backend "find-live-duplicate-id"))
 
-(defun increamemo-backend-build-source-ref (type locator &optional opener)
-  "Return a source ref for TYPE, LOCATOR, and optional OPENER."
-  (let ((source-ref nil))
-    (dolist (backend increamemo-backends)
-      (unless source-ref
-        (setq source-ref
-              (funcall (increamemo-backend--builder backend)
-                       type
-                       locator
-                       opener))))
-    (or source-ref
-        (user-error "Increamemo: no backend recognized type: %s" type))))
+(defun increamemo-backend--insert-function (backend)
+  "Return the subtype insert function for BACKEND."
+  (increamemo-backend--function backend "insert-item-data"))
+
+(defun increamemo-backend--hydrate-function (backend)
+  "Return the subtype hydration function for BACKEND."
+  (increamemo-backend--function backend "hydrate-item"))
+
+(defun increamemo-backend--open-function (backend)
+  "Return the open function for BACKEND."
+  (increamemo-backend--function backend "open-item"))
+
+(defun increamemo-backend--find-by-type (type)
+  "Return the configured backend that implements TYPE."
+  (or
+   (cl-find-if
+    (lambda (backend)
+      (string=
+       (funcall (increamemo-backend--type-function backend))
+       type))
+    increamemo-backends)
+   (user-error "Increamemo: no backend recognized type: %s" type)))
 
 (defun increamemo-backend-supported-types ()
   "Return the configured backend type strings."
   (delete-dups
-   (mapcar #'increamemo-backend--type increamemo-backends)))
+   (mapcar
+    (lambda (backend)
+      (funcall (increamemo-backend--type-function backend)))
+    increamemo-backends)))
+
+(defun increamemo-backend-identify-current (&optional buffer)
+  "Return an item spec for BUFFER using the configured backends."
+  (let ((target-buffer (or buffer (current-buffer)))
+        (item-spec nil))
+    (dolist (backend increamemo-backends)
+      (unless item-spec
+        (setq item-spec
+              (funcall (increamemo-backend--recognizer backend)
+                       target-buffer))))
+    (or item-spec
+        (user-error "Increamemo: no backend recognized the current buffer"))))
+
+(defun increamemo-backend-prompt-new-item (type)
+  "Prompt for a new item of TYPE and return its item spec."
+  (funcall
+   (increamemo-backend--prompt-function
+    (increamemo-backend--find-by-type type))))
+
+(defun increamemo-backend-build-source-ref (type locator &optional opener)
+  "Return an item spec for TYPE and LOCATOR.
+
+OPENER is accepted for compatibility and ignored."
+  (ignore opener)
+  (let ((backend (increamemo-backend--find-by-type type)))
+    (cond
+     ((fboundp (intern-soft (format "%s-build-source-ref" backend)))
+      (funcall (intern-soft (format "%s-build-source-ref" backend))
+               type locator opener))
+     (t
+      (user-error "Increamemo: backend %S does not support manual construction"
+                  backend)))))
+
+(defun increamemo-backend-find-live-duplicate-id (connection item-spec)
+  "Return a live duplicate id for ITEM-SPEC on CONNECTION, or nil."
+  (funcall
+   (increamemo-backend--duplicate-function
+    (increamemo-backend--find-by-type (plist-get item-spec :type)))
+   connection
+   item-spec))
+
+(defun increamemo-backend-insert-item-data (connection item-id item-spec)
+  "Insert subtype data for ITEM-ID and ITEM-SPEC on CONNECTION."
+  (funcall
+   (increamemo-backend--insert-function
+    (increamemo-backend--find-by-type (plist-get item-spec :type)))
+   connection
+   item-id
+   item-spec))
+
+(defun increamemo-backend-hydrate-item (connection item)
+  "Return ITEM enriched with subtype data loaded from CONNECTION."
+  (funcall
+   (increamemo-backend--hydrate-function
+    (increamemo-backend--find-by-type (plist-get item :type)))
+   connection
+   item))
+
+(defun increamemo-backend-open-item (item)
+  "Open ITEM through its backend and return the resulting buffer."
+  (funcall
+   (increamemo-backend--open-function
+    (increamemo-backend--find-by-type (plist-get item :type)))
+   item))
 
 (provide 'increamemo-backend)
 ;;; increamemo-backend.el ends here

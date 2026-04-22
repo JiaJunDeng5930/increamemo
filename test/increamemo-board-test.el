@@ -35,8 +35,7 @@
 (defun increamemo-board-test--source-ref (path)
   "Return a file source ref for PATH."
   (list :type "file"
-        :locator path
-        :opener 'find-file
+        :path path
         :title-snapshot (file-name-nondirectory path)))
 
 (defun increamemo-board-test--write-note (root name)
@@ -49,7 +48,7 @@
 
 (defun increamemo-board-test--entry-labels (entries)
   "Return the title column from ENTRIES."
-  (mapcar (lambda (entry) (aref (cadr entry) 5)) entries))
+  (mapcar (lambda (entry) (aref (cadr entry) 4)) entries))
 
 (defun increamemo-board-test--goto-entry (title)
   "Move point to the row whose title column matches TITLE."
@@ -315,31 +314,37 @@
     (let* ((root (make-temp-file "increamemo-board-" t))
            (manual-path (increamemo-board-test--write-note root "notes/manual.md"))
            (manual-relative-path "notes/manual.md")
-           (seen-type-collection nil))
+           (seen-type-collection nil)
+           (step 0))
       (unwind-protect
           (let ((default-directory root))
             (cl-letf (((symbol-function 'completing-read)
-                       (lambda (prompt collection &rest _args)
+                      (lambda (prompt collection &rest _args)
+                         (setq step (1+ step))
+                         (should (= step 3))
                          (should (equal prompt "Type: "))
                          (setq seen-type-collection collection)
                          "file"))
                       ((symbol-function 'read-file-name)
                        (lambda (prompt &rest _args)
-                         (should (equal prompt "Locator (file path): "))
+                         (setq step (1+ step))
+                         (should (= step 4))
+                         (should (equal prompt "File path: "))
                          manual-relative-path))
                       ((symbol-function 'read-string)
-                       (lambda (prompt &optional _history _default initial-input)
+                       (lambda (prompt &optional _history _default _initial-input)
+                         (setq step (1+ step))
                          (cond
-                          ((equal prompt "Opener: ")
-                           (should (equal initial-input "find-file"))
-                           "")
                           ((equal prompt "Due date (YYYY-MM-DD): ")
+                           (should (= step 2))
                            "2026-04-23")
                           (t
                            (ert-fail
                             (format "Unexpected prompt: %S" prompt))))))
                       ((symbol-function 'read-number)
                        (lambda (prompt &rest _args)
+                         (setq step (1+ step))
+                         (should (= step 1))
                          (should (equal prompt "Priority (0-100): "))
                          15))
                       ((symbol-function 'increamemo-time-today)
@@ -361,10 +366,12 @@
         (increamemo-test-support-select-row
          increamemo-db-file
          (concat
-          "SELECT type, locator, opener, next_due_date, priority "
-          "FROM increamemo_items WHERE title_snapshot = ?")
+          "SELECT i.type, f.path, i.next_due_date, i.priority "
+          "FROM increamemo_items i "
+          "JOIN increamemo_file_items f ON f.item_id = i.id "
+          "WHERE i.title_snapshot = ?")
          '("manual.md"))
-        (list "file" manual-path "find-file" "2026-04-23" 15))))))
+        (list "file" manual-path "2026-04-23" 15))))))
 
 (ert-deftest increamemo-board-stale-row-action-messages-and-refreshes ()
   "Board actions on deleted rows show a message and refresh the listing."
