@@ -6,6 +6,8 @@
 
 ;;; Code:
 
+(require 'seq)
+
 (defgroup increamemo nil
   "Scheduled note review workflows."
   :group 'applications)
@@ -87,6 +89,11 @@
   "Return non-nil when POLICY is a supported invalid opener policy."
   (memq policy '(keep archive delete)))
 
+(defun increamemo-config--valid-backends-p (backends)
+  "Return non-nil when BACKENDS is a list of backend symbols."
+  (and (listp backends)
+       (seq-every-p #'symbolp backends)))
+
 (defun increamemo-config-require-ready ()
   "Return a configuration snapshot or raise `user-error'."
   (unless (increamemo-config--valid-db-file-p increamemo-db-file)
@@ -106,6 +113,9 @@
   (unless (functionp increamemo-mode-line-format-function)
     (user-error "Increamemo: invalid mode line format function: %S"
                 increamemo-mode-line-format-function))
+  (unless (increamemo-config--valid-backends-p increamemo-backends)
+    (user-error "Increamemo: invalid backend list: %S"
+                increamemo-backends))
   (increamemo-config-snapshot))
 
 (provide 'increamemo-config)
