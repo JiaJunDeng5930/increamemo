@@ -11,18 +11,21 @@
 (require 'increamemo-backend-file)
 (require 'increamemo-config)
 
-(defun increamemo-backend--feature (backend)
-  "Return the feature name that implements BACKEND."
+(defun increamemo-backend--features (backend)
+  "Return the feature names that may implement BACKEND."
   (let ((backend-name (symbol-name backend)))
-    (if (and (string-prefix-p "increamemo-" backend-name)
-             (string-suffix-p "-backend" backend-name))
-        (intern
-         (concat
-          "increamemo-backend-"
-          (string-remove-suffix
-           "-backend"
-           (string-remove-prefix "increamemo-" backend-name))))
-      backend)))
+    (delete-dups
+     (delq nil
+           (list
+            backend
+            (when (and (string-prefix-p "increamemo-" backend-name)
+                       (string-suffix-p "-backend" backend-name))
+              (intern
+               (concat
+                "increamemo-backend-"
+                (string-remove-suffix
+                 "-backend"
+                 (string-remove-prefix "increamemo-" backend-name))))))))))
 
 (defun increamemo-backend--function (backend suffix)
   "Return BACKEND function named by SUFFIX.
@@ -30,7 +33,7 @@
 BACKEND follows the registry contract exposed by `increamemo-backends'."
   (unless (symbolp backend)
     (user-error "Increamemo: invalid backend: %S" backend))
-  (let ((feature (increamemo-backend--feature backend)))
+  (dolist (feature (increamemo-backend--features backend))
     (unless (featurep feature)
       (require feature nil t)))
   (let ((function-symbol
