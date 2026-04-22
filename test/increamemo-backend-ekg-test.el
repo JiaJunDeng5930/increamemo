@@ -41,6 +41,16 @@
      (increamemo-ekg-backend-recognize-current (current-buffer))
      :type 'user-error)))
 
+(ert-deftest increamemo-ekg-backend-requires-note-id ()
+  "The EKG backend requires the current note to provide an identifier."
+  (with-temp-buffer
+    (setq-local ekg-note '(:id nil))
+    (cl-letf (((symbol-function 'ekg-note-id)
+               (lambda (_note) nil)))
+      (should-error
+       (increamemo-ekg-backend-recognize-current (current-buffer))
+       :type 'user-error))))
+
 (ert-deftest increamemo-ekg-open-note-opens-note-by-id ()
   "The EKG opener wrapper loads and opens the note matching the locator."
   (let ((opened-note nil)

@@ -80,6 +80,35 @@
        (increamemo-backend-identify-current (current-buffer))
        :type 'user-error))))
 
+(ert-deftest increamemo-backend-registry-supports-custom-backends ()
+  "Configured backends follow the registry naming contract."
+  (let ((increamemo-backends '(increamemo-test-backend)))
+    (cl-letf (((symbol-function 'increamemo-test-backend-recognize-current)
+               (lambda (_buffer)
+                 '(:type "test"
+                   :locator "current"
+                   :opener test-open
+                   :title-snapshot "Current")))
+              ((symbol-function 'increamemo-test-backend-build-source-ref)
+               (lambda (type locator &optional opener)
+                 (when (string= type "test")
+                   (list :type type
+                         :locator locator
+                         :opener (or opener 'test-open)
+                         :title-snapshot "Manual")))))
+      (with-temp-buffer
+        (let ((identified
+               (increamemo-backend-identify-current (current-buffer)))
+              (manual
+               (increamemo-backend-build-source-ref
+                "test"
+                "manual"
+                'manual-open)))
+          (should (equal (plist-get identified :type) "test"))
+          (should (equal (plist-get identified :locator) "current"))
+          (should (eq (plist-get manual :opener) 'manual-open))
+          (should (equal (plist-get manual :locator) "manual")))))))
+
 (ert-deftest increamemo-backend-build-source-ref-normalizes-manual-file-entry ()
   "The backend registry builds file source refs for manual entry."
   (let ((increamemo-supported-file-formats '("md"))

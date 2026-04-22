@@ -43,6 +43,23 @@
       (increamemo-test-support-read-file
        (expand-file-name file increamemo-test-support--project-root))))))
 
+(ert-deftest increamemo-static-due-order-clause-has-single-definition ()
+  "The canonical due-order clause appears once in the domain implementation."
+  (let* ((source
+          (increamemo-test-support-read-file
+           (expand-file-name
+            "increamemo-domain.el"
+            increamemo-test-support--project-root)))
+         (pattern
+          (regexp-quote
+           "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+         (start 0)
+         (count 0))
+    (while (string-match pattern source start)
+      (setq count (1+ count))
+      (setq start (match-end 0)))
+    (should (= count 1))))
+
 (ert-deftest increamemo-work-keymap-only-activates-in-work-mode ()
   "Work commands are available only while work mode is enabled."
   (with-temp-buffer

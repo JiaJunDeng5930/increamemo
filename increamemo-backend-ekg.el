@@ -25,6 +25,12 @@
     (user-error "Increamemo: missing ekg function: %S" symbol))
   symbol)
 
+(defun increamemo-ekg-backend--require-note-id (note-id)
+  "Ensure NOTE-ID is present and return it."
+  (when (null note-id)
+    (user-error "Increamemo: missing ekg note id"))
+  note-id)
+
 (defun increamemo-ekg-backend--normalize-locator (locator)
   "Return a normalized EKG LOCATOR."
   (condition-case nil
@@ -38,7 +44,9 @@
     (when (increamemo-ekg-backend--ekg-buffer-p target-buffer)
       (increamemo-ekg-backend--require-function 'ekg-note-id)
       (with-current-buffer target-buffer
-        (let ((note-id (ekg-note-id ekg-note)))
+        (let ((note-id
+               (increamemo-ekg-backend--require-note-id
+                (ekg-note-id ekg-note))))
           (list :type "ekg"
                 :locator (prin1-to-string note-id)
                 :opener 'increamemo-ekg-open-note

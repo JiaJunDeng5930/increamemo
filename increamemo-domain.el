@@ -22,6 +22,25 @@
    "[+-][0-9]\\{2\\}:[0-9]\\{2\\}\\'")
   "Regexp used to validate ISO 8601 timestamps.")
 
+(defconst increamemo-domain--item-select-columns
+  (concat
+   "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
+   "priority, state, created_at, updated_at, last_reviewed_at, "
+   "last_error, custom_json, version ")
+  "Shared item projection used by domain queries.")
+
+(defconst increamemo-domain--due-order-clause
+  " ORDER BY priority ASC, next_due_date ASC, created_at ASC"
+  "The canonical due-item ordering clause.")
+
+(defun increamemo-domain--item-select-query (where-clause &optional order-clause)
+  "Return an item query with WHERE-CLAUSE and ORDER-CLAUSE."
+  (concat
+   increamemo-domain--item-select-columns
+   "FROM increamemo_items "
+   where-clause
+   (or order-clause "")))
+
 (defun increamemo-domain--db-file ()
   "Return the configured database file."
   (plist-get (increamemo-config-require-ready) :db-file))
@@ -133,11 +152,7 @@ When DUE-DATE is non-nil, validate and return it."
   (car
    (increamemo-storage-select
     connection
-    (concat
-     "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-     "priority, state, created_at, updated_at, last_reviewed_at, "
-     "last_error, custom_json, version "
-     "FROM increamemo_items WHERE id = ?")
+    (increamemo-domain--item-select-query "WHERE id = ?")
     (list item-id))))
 
 (defun increamemo-domain--timestamp-date (timestamp)
@@ -235,13 +250,8 @@ Return the number of rows changed by the update statement."
   (car
    (increamemo-storage-select
     connection
-    (concat
-     "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-     "priority, state, created_at, updated_at, last_reviewed_at, "
-     "last_error, custom_json, version "
-     "FROM increamemo_items "
-     "WHERE type = ? AND locator = ? AND state IN ('active', 'invalid') "
-     "LIMIT 1")
+    (increamemo-domain--item-select-query
+     "WHERE type = ? AND locator = ? AND state IN ('active', 'invalid') LIMIT 1")
     (list type locator))))
 
 (defun increamemo-domain--insert-history
@@ -391,16 +401,13 @@ When OCCURRED-AT is nil, use the current timestamp."
          (placeholders
           (mapconcat (lambda (_value) "?") excluded-values ", "))
          (sql
-          (concat
-           "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-           "priority, state, created_at, updated_at, last_reviewed_at, "
-           "last_error, custom_json, version "
-           "FROM increamemo_items "
-           "WHERE state = 'active' AND next_due_date <= ?"
-           (if excluded-values
-               (format " AND id NOT IN (%s)" placeholders)
-             "")
-           " ORDER BY priority ASC, next_due_date ASC, created_at ASC")))
+          (increamemo-domain--item-select-query
+           (concat
+            "WHERE state = 'active' AND next_due_date <= ?"
+            (if excluded-values
+                (format " AND id NOT IN (%s)" placeholders)
+              ""))
+           increamemo-domain--due-order-clause)))
     (let ((connection (increamemo-storage-open db-file)))
       (unwind-protect
           (mapcar
@@ -421,38 +428,23 @@ FILTER accepts `planned', `due', `invalid', and `all'."
          (query
           (pcase effective-filter
             ('planned
-             (concat
-              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-              "priority, state, created_at, updated_at, last_reviewed_at, "
-              "last_error, custom_json, version "
-              "FROM increamemo_items "
-              "WHERE state = 'active' AND next_due_date IS NOT NULL "
-              "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+             (increamemo-domain--item-select-query
+              "WHERE state = 'active' AND next_due_date IS NOT NULL"
+              increamemo-domain--due-order-clause))
             ('due
              (unless validated-today
                (user-error "Increamemo: today is required for due filter"))
-             (concat
-              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-              "priority, state, created_at, updated_at, last_reviewed_at, "
-              "last_error, custom_json, version "
-              "FROM increamemo_items "
-              "WHERE state = 'active' AND next_due_date <= ? "
-              "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+             (increamemo-domain--item-select-query
+              "WHERE state = 'active' AND next_due_date <= ?"
+              increamemo-domain--due-order-clause))
             ('invalid
-             (concat
-              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-              "priority, state, created_at, updated_at, last_reviewed_at, "
-              "last_error, custom_json, version "
-              "FROM increamemo_items "
-              "WHERE state = 'invalid' "
-              "ORDER BY priority ASC, next_due_date ASC, created_at ASC"))
+             (increamemo-domain--item-select-query
+              "WHERE state = 'invalid'"
+              increamemo-domain--due-order-clause))
             ('all
-             (concat
-              "SELECT id, type, locator, opener, title_snapshot, next_due_date, "
-              "priority, state, created_at, updated_at, last_reviewed_at, "
-              "last_error, custom_json, version "
-              "FROM increamemo_items "
-              "ORDER BY state ASC, priority ASC, next_due_date ASC, created_at ASC"))
+             (increamemo-domain--item-select-query
+              ""
+              " ORDER BY state ASC, priority ASC, next_due_date ASC, created_at ASC"))
             (_
              (user-error "Increamemo: unsupported board filter: %S"
                          effective-filter))))

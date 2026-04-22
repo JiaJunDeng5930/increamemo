@@ -10,19 +10,25 @@
 (require 'increamemo-backend-file)
 (require 'increamemo-config)
 
+(defun increamemo-backend--function (backend suffix)
+  "Return BACKEND function named by SUFFIX.
+
+BACKEND follows the registry contract exposed by `increamemo-backends'."
+  (unless (symbolp backend)
+    (user-error "Increamemo: invalid backend: %S" backend))
+  (let ((function-symbol
+         (intern-soft (format "%s-%s" backend suffix))))
+    (unless (fboundp function-symbol)
+      (user-error "Increamemo: unknown backend: %S" backend))
+    function-symbol))
+
 (defun increamemo-backend--recognizer (backend)
   "Return the recognizer function for BACKEND."
-  (pcase backend
-    ('increamemo-file-backend #'increamemo-file-backend-recognize-current)
-    ('increamemo-ekg-backend #'increamemo-ekg-backend-recognize-current)
-    (_ (user-error "Increamemo: unknown backend: %S" backend))))
+  (increamemo-backend--function backend "recognize-current"))
 
 (defun increamemo-backend--builder (backend)
   "Return the manual source-ref builder for BACKEND."
-  (pcase backend
-    ('increamemo-file-backend #'increamemo-file-backend-build-source-ref)
-    ('increamemo-ekg-backend #'increamemo-ekg-backend-build-source-ref)
-    (_ (user-error "Increamemo: unknown backend: %S" backend))))
+  (increamemo-backend--function backend "build-source-ref"))
 
 (defun increamemo-backend-identify-current (&optional buffer)
   "Return a source ref for BUFFER using the configured backends."
