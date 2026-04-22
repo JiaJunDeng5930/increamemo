@@ -6,6 +6,7 @@
 
 ;;; Code:
 
+(require 'subr-x)
 (require 'increamemo-backend-ekg)
 (require 'increamemo-backend-file)
 (require 'increamemo-config)
@@ -13,7 +14,8 @@
 (defun increamemo-backend--feature (backend)
   "Return the feature name that implements BACKEND."
   (let ((backend-name (symbol-name backend)))
-    (if (string-suffix-p "-backend" backend-name)
+    (if (and (string-prefix-p "increamemo-" backend-name)
+             (string-suffix-p "-backend" backend-name))
         (intern
          (concat
           "increamemo-backend-"

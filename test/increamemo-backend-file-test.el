@@ -133,6 +133,30 @@
         (unload-feature 'increamemo-backend-temp t))
       (delete-directory temp-dir t))))
 
+(ert-deftest increamemo-backend-registry-loads-external-backend-feature ()
+  "External backends load from their own feature name."
+  (let* ((temp-dir (make-temp-file "external-backend-feature-" t))
+         (feature-file (expand-file-name "temp-backend.el" temp-dir))
+         (load-path (cons temp-dir load-path))
+         (increamemo-backends '(temp-backend)))
+    (unwind-protect
+        (progn
+          (with-temp-file feature-file
+            (insert ";;; temp-backend.el --- temp backend -*- lexical-binding: t; -*-\n")
+            (insert "(defun temp-backend-recognize-current (_buffer)\n")
+            (insert "  (list :type \"temp\" :locator \"external\" :opener 'temp-open :title-snapshot \"External\"))\n")
+            (insert "(defun temp-backend-build-source-ref (type locator &optional opener)\n")
+            (insert "  (when (string= type \"temp\")\n")
+            (insert "    (list :type type :locator locator :opener (or opener 'temp-open) :title-snapshot \"Manual\")))\n")
+            (insert "(provide 'temp-backend)\n"))
+          (let ((recognized (increamemo-backend-identify-current (current-buffer)))
+                (manual (increamemo-backend-build-source-ref "temp" "manual")))
+            (should (equal (plist-get recognized :locator) "external"))
+            (should (eq (plist-get manual :opener) 'temp-open))))
+      (ignore-errors
+        (unload-feature 'temp-backend t))
+      (delete-directory temp-dir t))))
+
 (ert-deftest increamemo-backend-build-source-ref-normalizes-manual-file-entry ()
   "The backend registry builds file source refs for manual entry."
   (let ((increamemo-supported-file-formats '("md"))

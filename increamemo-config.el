@@ -91,7 +91,7 @@
 
 (defun increamemo-config--valid-backends-p (backends)
   "Return non-nil when BACKENDS is a list of backend symbols."
-  (and (listp backends)
+  (and (proper-list-p backends)
        (seq-every-p
         (lambda (backend)
           (and backend
