@@ -16,6 +16,8 @@
 BACKEND follows the registry contract exposed by `increamemo-backends'."
   (unless (symbolp backend)
     (user-error "Increamemo: invalid backend: %S" backend))
+  (unless (featurep backend)
+    (require backend nil t))
   (let ((function-symbol
          (intern-soft (format "%s-%s" backend suffix))))
     (unless (fboundp function-symbol)
