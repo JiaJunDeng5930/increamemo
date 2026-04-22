@@ -45,7 +45,9 @@
 (ert-deftest increamemo-config-require-ready-expands-path-and-returns-snapshot ()
   "Ready configuration returns an expanded snapshot."
   (let ((increamemo-db-file "~/tmp/increamemo.sqlite")
-        (increamemo-initial-due-date-function #'ignore)
+        (increamemo-priority-schedule-rules
+         '((:max-priority 10 :first-interval-days 1 :a-factor 1.1)
+           (:max-priority 100 :first-interval-days 30 :a-factor 2.0)))
         (increamemo-invalid-opener-policy 'archive)
         (increamemo-reschedule-function #'ignore)
         (increamemo-mode-line-format-function
@@ -57,7 +59,9 @@
       (increamemo-config-require-ready)
       (list :db-file (expand-file-name increamemo-db-file)
             :invalid-opener-policy 'archive
-            :initial-due-date-function #'ignore
+            :priority-schedule-rules
+            '((:max-priority 10 :first-interval-days 1 :a-factor 1.1)
+              (:max-priority 100 :first-interval-days 30 :a-factor 2.0))
             :reschedule-function #'ignore
             :mode-line-format-function
             #'increamemo-default-mode-line-format
@@ -102,10 +106,11 @@
         (increamemo-reschedule-function 'not-a-function))
     (should-error (increamemo-config-require-ready) :type 'user-error)))
 
-(ert-deftest increamemo-config-require-ready-rejects-invalid-initial-due-function ()
-  "Readiness checks reject non-callable initial due date functions."
+(ert-deftest increamemo-config-require-ready-rejects-invalid-priority-schedule-rules ()
+  "Readiness checks reject malformed priority schedule rules."
   (let ((increamemo-db-file "/tmp/increamemo.sqlite")
-        (increamemo-initial-due-date-function 'not-a-function))
+        (increamemo-priority-schedule-rules
+         '((:max-priority 60 :first-interval-days 4 :a-factor 1.25))))
     (should-error (increamemo-config-require-ready) :type 'user-error)))
 
 (ert-deftest increamemo-config-require-ready-rejects-invalid-backend-list ()

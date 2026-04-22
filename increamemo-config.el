@@ -50,9 +50,22 @@
   :type '(alist :key-type string :value-type function)
   :group 'increamemo)
 
-(defcustom increamemo-initial-due-date-function nil
-  "Optional function used to calculate the first due date for new items."
-  :type '(choice (const :tag "Today" nil) function)
+(defcustom increamemo-priority-schedule-rules
+  '((:max-priority 10 :first-interval-days 1 :a-factor 1.10)
+    (:max-priority 30 :first-interval-days 2 :a-factor 1.15)
+    (:max-priority 60 :first-interval-days 4 :a-factor 1.25)
+    (:max-priority 80 :first-interval-days 14 :a-factor 1.50)
+    (:max-priority 100 :first-interval-days 30 :a-factor 2.00))
+  "Rules used to derive the first interval and multiplier from priority.
+
+Each rule is a plist with `:max-priority', `:first-interval-days', and
+`:a-factor'.  The first rule whose `:max-priority' is greater than or equal to
+the item priority applies."
+  :type '(repeat
+          (plist :tag "Priority schedule rule"
+                 :options ((:max-priority integer)
+                           (:first-interval-days integer)
+                           (:a-factor number))))
   :group 'increamemo)
 
 (declare-function increamemo-default-reschedule "increamemo-policy" ())
@@ -100,7 +113,7 @@
   "Return a plist snapshot of the current configuration."
   (list :db-file (increamemo-config-db-file)
         :invalid-opener-policy increamemo-invalid-opener-policy
-        :initial-due-date-function increamemo-initial-due-date-function
+        :priority-schedule-rules increamemo-priority-schedule-rules
         :reschedule-function increamemo-reschedule-function
         :mode-line-format-function increamemo-mode-line-format-function
         :backends increamemo-backends))
@@ -108,6 +121,30 @@
 (defun increamemo-config--valid-invalid-opener-policy-p (policy)
   "Return non-nil when POLICY is a supported invalid opener policy."
   (memq policy '(keep archive delete)))
+
+(defun increamemo-config--valid-priority-schedule-rules-p (rules)
+  "Return non-nil when RULES define a complete priority schedule."
+  (let ((previous-max -1)
+        (valid t))
+    (and (proper-list-p rules)
+         (> (length rules) 0)
+         (progn
+           (dolist (rule rules)
+             (let ((max-priority (plist-get rule :max-priority))
+                   (first-interval-days (plist-get rule :first-interval-days))
+                   (a-factor (plist-get rule :a-factor)))
+               (unless (and (integerp max-priority)
+                            (<= 0 max-priority)
+                            (<= max-priority 100)
+                            (> max-priority previous-max)
+                            (integerp first-interval-days)
+                            (> first-interval-days 0)
+                            (numberp a-factor)
+                            (>= a-factor 1.0))
+                 (setq valid nil))
+               (setq previous-max max-priority)))
+           (and valid
+                (= previous-max 100))))))
 
 (defun increamemo-config--valid-backends-p (backends)
   "Return non-nil when BACKENDS is a list of backend symbols."
@@ -127,10 +164,11 @@
        increamemo-invalid-opener-policy)
     (user-error "Increamemo: invalid opener policy: %S"
                 increamemo-invalid-opener-policy))
-  (unless (or (null increamemo-initial-due-date-function)
-              (functionp increamemo-initial-due-date-function))
-    (user-error "Increamemo: invalid initial due date function: %S"
-                increamemo-initial-due-date-function))
+  (unless
+      (increamemo-config--valid-priority-schedule-rules-p
+       increamemo-priority-schedule-rules)
+    (user-error "Increamemo: invalid priority schedule rules: %S"
+                increamemo-priority-schedule-rules))
   (unless (functionp increamemo-reschedule-function)
     (user-error "Increamemo: invalid reschedule function: %S"
                 increamemo-reschedule-function))
@@ -141,6 +179,15 @@
     (user-error "Increamemo: invalid backend list: %S"
                 increamemo-backends))
   (increamemo-config-snapshot))
+
+(defun increamemo-config-priority-schedule-for-priority (priority)
+  "Return the configured schedule rule for PRIORITY."
+  (or
+   (seq-find
+    (lambda (rule)
+      (<= priority (plist-get rule :max-priority)))
+    increamemo-priority-schedule-rules)
+   (user-error "Increamemo: no priority schedule rule for %s" priority)))
 
 (provide 'increamemo-config)
 ;;; increamemo-config.el ends here

@@ -137,13 +137,13 @@
                 (progn
                   (increamemo-storage-execute
                    connection
-                   "CREATE TABLE increamemo_items (id INTEGER PRIMARY KEY, type TEXT NOT NULL, title_snapshot TEXT, next_due_date TEXT NOT NULL, priority INTEGER NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_reviewed_at TEXT, last_error TEXT, version INTEGER NOT NULL DEFAULT 0)")
+                   "CREATE TABLE increamemo_items (id INTEGER PRIMARY KEY, type TEXT NOT NULL, title_snapshot TEXT, next_due_date TEXT NOT NULL, priority INTEGER NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_reviewed_at TEXT, last_error TEXT, version INTEGER NOT NULL DEFAULT 0, a_factor REAL NOT NULL)")
                   (increamemo-storage-execute
                    connection
                    "CREATE TABLE increamemo_ekg_items (item_id INTEGER PRIMARY KEY, note_id TEXT NOT NULL)")
                   (increamemo-storage-execute
                    connection
-                   "INSERT INTO increamemo_items(id, type, title_snapshot, next_due_date, priority, state, created_at, updated_at, version) VALUES(1, 'ekg', '42', '2026-04-21', 10, 'active', '2026-04-21T08:00:00+00:00', '2026-04-21T08:00:00+00:00', 0)")
+                   "INSERT INTO increamemo_items(id, type, title_snapshot, next_due_date, priority, state, created_at, updated_at, version, a_factor) VALUES(1, 'ekg', '42', '2026-04-21', 10, 'active', '2026-04-21T08:00:00+00:00', '2026-04-21T08:00:00+00:00', 0, 1.1)")
                   (increamemo-ekg-backend-insert-item-data connection 1 item-spec)
                   (let ((hydrated
                          (increamemo-ekg-backend-hydrate-item

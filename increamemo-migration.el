@@ -29,7 +29,7 @@
 (require 'increamemo-config)
 (require 'increamemo-storage)
 
-(defconst increamemo-migration-schema-version "2"
+(defconst increamemo-migration-schema-version "3"
   "Current increamemo schema version.")
 
 (defconst increamemo-migration--schema-statements
@@ -43,6 +43,7 @@
        title_snapshot TEXT,
        next_due_date TEXT NOT NULL,
        priority INTEGER NOT NULL,
+       a_factor REAL NOT NULL,
        state TEXT NOT NULL,
        created_at TEXT NOT NULL,
        updated_at TEXT NOT NULL,

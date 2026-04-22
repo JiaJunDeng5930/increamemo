@@ -70,6 +70,10 @@
   "Priority (0-100): "
   "Prompt used for priority input.")
 
+(defconst increamemo-board--a-factor-prompt
+  "A-Factor (>=1.0): "
+  "Prompt used for growth multiplier input.")
+
 (defconst increamemo-board--due-date-prompt
   "Due date (YYYY-MM-DD): "
   "Prompt used for due date input.")
@@ -87,6 +91,7 @@
       (plist-get item :type)
       (or (plist-get item :next-due-date) "")
       (number-to-string (plist-get item :priority))
+      (format "%.2f" (plist-get item :a-factor))
       (plist-get item :state)
       (or (plist-get item :title-snapshot) "")))))
 
@@ -100,6 +105,13 @@
                    (increamemo-backend-supported-types)
                    nil
                    t))
+
+(defun increamemo-board--read-a-factor ()
+  "Prompt for a growth multiplier and return it as a number."
+  (let ((input (read-string increamemo-board--a-factor-prompt)))
+    (unless (string-match-p "\\`[0-9]+\\(?:\\.[0-9]+\\)?\\'" input)
+      (user-error "Increamemo: invalid a-factor: %S" input))
+    (string-to-number input)))
 
 (defun increamemo-board--set-mark (item-id action)
   "Set ITEM-ID mark to ACTION, toggling off when already equal."
@@ -210,6 +222,7 @@
   (interactive)
   (increamemo-config-require-ready)
   (let* ((priority (read-number increamemo-board--priority-prompt))
+         (a-factor (increamemo-board--read-a-factor))
          (due-date (read-string increamemo-board--due-date-prompt))
          (type (increamemo-board--read-type))
          (item-spec (increamemo-backend-prompt-new-item type)))
@@ -217,7 +230,8 @@
      item-spec
      priority
      due-date
-     (increamemo-time-now))
+     (increamemo-time-now)
+     a-factor)
     (increamemo-board-refresh)))
 
 (defun increamemo-board-archive-current-item ()
@@ -331,6 +345,7 @@
          ("Type" 12 t)
          ("Due Date" 12 t)
          ("Priority" 10 t)
+         ("A-Factor" 10 t)
          ("State" 10 t)
          ("Title" 48 t)])
   (setq tabulated-list-padding 2)

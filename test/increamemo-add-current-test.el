@@ -56,7 +56,7 @@
                  (increamemo-test-support-select-row
                   increamemo-db-file
                   (concat
-                   "SELECT i.type, f.path, i.next_due_date, i.priority, i.state "
+                   "SELECT i.type, f.path, i.next_due_date, i.priority, i.a_factor, i.state "
                    "FROM increamemo_items i "
                    "JOIN increamemo_file_items f ON f.item_id = i.id "
                    "LIMIT 1"))))
@@ -65,6 +65,7 @@
                                  (expand-file-name buffer-file-name)
                                  "2026-04-22"
                                  10
+                                 1.1
                                  "active"))))
           (should (= 1
                      (increamemo-test-support-count-rows
@@ -98,19 +99,14 @@
                       increamemo-db-file
                       "SELECT COUNT(*) FROM increamemo_history"))))))))
 
-(ert-deftest increamemo-add-current-uses-configured-initial-due-date-strategy ()
-  "Adding the current file can derive its first due date from configuration."
+(ert-deftest increamemo-add-current-uses-configured-priority-schedule-rules ()
+  "Adding the current file derives its first due date and multiplier from rules."
   (increamemo-test-support-with-temp-db
     (increamemo-init)
     (let ((increamemo-supported-file-formats '("md"))
           (increamemo-file-openers '(("md" . find-file)))
-          (increamemo-initial-due-date-function
-           (lambda (source-ref priority today occurred-at)
-             (should (equal (plist-get source-ref :type) "file"))
-             (should (= priority 10))
-             (should (equal today "2026-04-21"))
-             (should (equal occurred-at "2026-04-21T08:00:00+00:00"))
-             "2026-04-25")))
+          (increamemo-priority-schedule-rules
+           '((:max-priority 100 :first-interval-days 6 :a-factor 1.4))))
       (increamemo-test-support-with-file-buffer "notes/topic.md" "# title"
         (cl-letf (((symbol-function 'read-number)
                    (lambda (_prompt) 10))
@@ -121,11 +117,10 @@
           (increamemo-add-current)
           (should
            (equal
-            (car
-             (increamemo-test-support-select-row
-              increamemo-db-file
-              "SELECT next_due_date FROM increamemo_items LIMIT 1"))
-            "2026-04-25")))))))
+            (increamemo-test-support-select-row
+             increamemo-db-file
+             "SELECT next_due_date, a_factor FROM increamemo_items LIMIT 1")
+            '("2026-04-27" 1.4))))))))
 
 (provide 'increamemo-add-current-test)
 ;;; increamemo-add-current-test.el ends here

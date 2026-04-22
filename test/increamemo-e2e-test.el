@@ -57,6 +57,8 @@
                      (lambda (&rest _args) nil)))
             (setq increamemo-supported-file-formats '("md"))
             (setq increamemo-file-openers '(("md" . find-file)))
+            (setq increamemo-priority-schedule-rules
+                  '((:max-priority 100 :first-interval-days 1 :a-factor 1.1)))
             (setq increamemo-reschedule-function
                   (lambda (_item _action) "2026-04-28"))
             (increamemo-init)

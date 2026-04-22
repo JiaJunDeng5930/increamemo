@@ -106,29 +106,37 @@ If you do not use EKG, you can keep only the file backend:
 
 ## Optional Configuration
 
-### Initial Due Date for New Items
+### Priority Schedule Rules for New Items
 
-By default, new items are due today. You can override that rule:
+When you add an item from the current buffer, `increamemo` derives its first
+interval and `A-Factor` from `priority`.
 
 ```elisp
-(setq increamemo-initial-due-date-function
-      (lambda (source-ref priority today occurred-at)
-        (ignore source-ref priority occurred-at)
-        today))
+(setq increamemo-priority-schedule-rules
+      '((:max-priority 10 :first-interval-days 1 :a-factor 1.10)
+        (:max-priority 30 :first-interval-days 2 :a-factor 1.15)
+        (:max-priority 60 :first-interval-days 4 :a-factor 1.25)
+        (:max-priority 80 :first-interval-days 14 :a-factor 1.50)
+        (:max-priority 100 :first-interval-days 30 :a-factor 2.00)))
 ```
 
-The function receives:
+Each rule applies to priorities up to `:max-priority`. The first matching rule
+sets:
 
-- `source-ref`
-- `priority`
-- `today`
-- `occurred-at`
-
-It must return an ISO date string in `YYYY-MM-DD` format.
+- `:first-interval-days`
+- `:a-factor`
 
 ### Reschedule Policy After Completion
 
-The default policy schedules the next review for the following day.
+The default policy grows the previous interval with the stored `A-Factor`:
+
+```text
+next_interval_days =
+  max(ceil(previous_interval_days * a_factor),
+      previous_interval_days + 1)
+
+next_due_date = today + next_interval_days
+```
 
 You can provide your own function. Two signatures are supported:
 
@@ -288,18 +296,22 @@ M-x increamemo-board
 The board shows these columns:
 
 ```text
-Type | Due Date | Priority | State | Opener | Title | Locator
+Type | Due Date | Priority | A-Factor | State | Title
 ```
 
 ### Board Keys
 
 ```text
 a    Add an item
-A    Archive the current row
-d    Update the due date
+A    Mark the current row for archive
+d    Mark the current row for delete
+e    Update the due date
 p    Update the priority
 t    Show due items
 i    Show invalid items
+T    Show all items
+h    Show archived items
+x    Execute the marked row action
 g    Refresh
 RET  Open the current item
 q    Quit the board
@@ -322,7 +334,7 @@ Extra board commands are available through `M-x`:
 The board can:
 
 - add a new item
-- archive the current row
+- mark the current row for archive or delete, then execute with `x`
 - update due date
 - update priority
 - open the current row

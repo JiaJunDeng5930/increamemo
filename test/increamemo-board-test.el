@@ -415,22 +415,25 @@
             (cl-letf (((symbol-function 'completing-read)
                       (lambda (prompt collection &rest _args)
                          (setq step (1+ step))
-                         (should (= step 3))
+                         (should (= step 4))
                          (should (equal prompt "Type: "))
                          (setq seen-type-collection collection)
                          "file"))
                       ((symbol-function 'read-file-name)
                        (lambda (prompt &rest _args)
                          (setq step (1+ step))
-                         (should (= step 4))
+                         (should (= step 5))
                          (should (equal prompt "File path: "))
                          manual-relative-path))
                       ((symbol-function 'read-string)
                        (lambda (prompt &optional _history _default _initial-input)
                          (setq step (1+ step))
                          (cond
-                          ((equal prompt "Due date (YYYY-MM-DD): ")
+                          ((equal prompt "A-Factor (>=1.0): ")
                            (should (= step 2))
+                           "1.35")
+                          ((equal prompt "Due date (YYYY-MM-DD): ")
+                           (should (= step 3))
                            "2026-04-23")
                           (t
                            (ert-fail
@@ -460,12 +463,12 @@
         (increamemo-test-support-select-row
          increamemo-db-file
          (concat
-          "SELECT i.type, f.path, i.next_due_date, i.priority "
+          "SELECT i.type, f.path, i.next_due_date, i.priority, i.a_factor "
           "FROM increamemo_items i "
           "JOIN increamemo_file_items f ON f.item_id = i.id "
           "WHERE i.title_snapshot = ?")
          '("manual.md"))
-        (list "file" manual-path "2026-04-23" 15))))))
+        (list "file" manual-path "2026-04-23" 15 1.35))))))
 
 (ert-deftest increamemo-board-stale-row-action-messages-and-refreshes ()
   "Board actions on deleted rows show a message and refresh the listing."

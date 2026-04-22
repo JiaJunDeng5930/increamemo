@@ -42,7 +42,7 @@
 (defconst increamemo-domain--item-select-columns
   (concat
    "SELECT id, type, title_snapshot, next_due_date, priority, state, "
-   "created_at, updated_at, last_reviewed_at, last_error, version ")
+   "created_at, updated_at, last_reviewed_at, last_error, version, a_factor ")
   "Shared item projection used by domain queries.")
 
 (defconst increamemo-domain--due-order-clause
@@ -82,6 +82,13 @@
     (user-error "Increamemo: invalid priority: %S" value))
   value)
 
+(defun increamemo-domain--require-a-factor (value)
+  "Return VALUE when it is a valid growth multiplier."
+  (unless (and (numberp value)
+               (>= value 1.0))
+    (user-error "Increamemo: invalid a-factor: %S" value))
+  value)
+
 (defun increamemo-domain--require-item-spec (item-spec)
   "Validate ITEM-SPEC and return a normalized plist."
   (let* ((type (plist-get item-spec :type))
@@ -107,23 +114,24 @@
   "Return the ISO date part of OCCURRED-AT."
   (substring occurred-at 0 10))
 
-(defun increamemo-domain--resolve-initial-due-date
-    (item-spec priority due-date occurred-at)
-  "Return the initial due date for ITEM-SPEC.
+(defun increamemo-domain--resolve-initial-schedule (priority due-date a-factor occurred-at)
+  "Return the initial due date and multiplier for PRIORITY.
 
-PRIORITY and OCCURRED-AT are passed to the optional configured strategy.
-When DUE-DATE is non-nil, validate and return it."
-  (if due-date
-      (increamemo-domain--require-date due-date)
-    (let ((today (increamemo-domain--occurred-at-date occurred-at)))
-      (if increamemo-initial-due-date-function
-          (increamemo-domain--require-date
-           (funcall increamemo-initial-due-date-function
-                    item-spec
-                    priority
-                    today
-                    occurred-at))
-        (increamemo-time-add-days today 1)))))
+When DUE-DATE or A-FACTOR are nil, derive the missing values from the
+configured priority schedule rules using OCCURRED-AT as the base date."
+  (let* ((today (increamemo-domain--occurred-at-date occurred-at))
+         (rule (increamemo-config-priority-schedule-for-priority priority))
+         (initial-interval-days (plist-get rule :first-interval-days))
+         (resolved-due-date
+          (if due-date
+              (increamemo-domain--require-date due-date)
+            (increamemo-time-add-days today initial-interval-days)))
+         (resolved-a-factor
+          (increamemo-domain--require-a-factor
+           (or a-factor
+               (plist-get rule :a-factor)))))
+    (list :due-date resolved-due-date
+          :a-factor resolved-a-factor)))
 
 (defun increamemo-domain--row-to-item (row)
   "Convert database ROW into an item plist."
@@ -138,7 +146,8 @@ When DUE-DATE is non-nil, validate and return it."
           :updated-at (nth 7 row)
           :last-reviewed-at (nth 8 row)
           :last-error (nth 9 row)
-          :version (nth 10 row))))
+          :version (nth 10 row)
+          :a-factor (nth 11 row))))
 
 (defun increamemo-domain--hydrate-item (connection item)
   "Return ITEM enriched with subtype data from CONNECTION."
@@ -174,9 +183,14 @@ When DUE-DATE is non-nil, validate and return it."
 When ROW is provided, enrich the summary with current item facts."
   (let* ((current-row (or row (increamemo-domain--select-item-row connection item-id)))
          (last-reviewed-at (and current-row (nth 8 current-row)))
+         (created-at (and current-row (nth 6 current-row)))
          (next-due-date (and current-row (nth 3 current-row)))
-         (last-reviewed-date
-          (increamemo-domain--timestamp-date last-reviewed-at)))
+         (interval-anchor-date
+          (increamemo-domain--timestamp-date
+           (or last-reviewed-at created-at)))
+         (previous-interval-days
+          (when (and interval-anchor-date next-due-date)
+            (increamemo-domain--days-between interval-anchor-date next-due-date))))
     (list
      :history-count
      (or
@@ -210,9 +224,8 @@ When ROW is provided, enrich the summary with current item facts."
        "WHERE item_id = ? ORDER BY occurred_at DESC LIMIT 1")
       (list item-id))
      :last-reviewed-at last-reviewed-at
-     :current-interval-days
-     (when (and last-reviewed-date next-due-date)
-       (increamemo-domain--days-between last-reviewed-date next-due-date)))))
+     :current-interval-days previous-interval-days
+     :previous-interval-days previous-interval-days)))
 
 (defun increamemo-domain--require-advanced-version
     (connection item-id previous-version)
@@ -329,21 +342,24 @@ ALLOWED-STATES defines which current states may apply ACTION."
         (increamemo-storage-close connection)))))
 
 (defun increamemo-domain-ensure-item
-    (item-spec priority due-date &optional occurred-at)
+    (item-spec priority due-date &optional occurred-at a-factor)
   "Ensure ITEM-SPEC exists as an active item with PRIORITY and DUE-DATE.
 
-When OCCURRED-AT is nil, use the current timestamp."
+When OCCURRED-AT is nil, use the current timestamp.
+When A-FACTOR is nil, derive it from the configured priority schedule rules."
   (let* ((normalized-item (increamemo-domain--require-item-spec item-spec))
          (validated-priority (increamemo-domain--require-priority priority))
          (validated-occurred-at
           (increamemo-domain--require-timestamp
            (or occurred-at (increamemo-time-now))))
-         (validated-due-date
-          (increamemo-domain--resolve-initial-due-date
-           normalized-item
+         (initial-schedule
+          (increamemo-domain--resolve-initial-schedule
            validated-priority
            due-date
+           a-factor
            validated-occurred-at))
+         (validated-due-date (plist-get initial-schedule :due-date))
+         (validated-a-factor (plist-get initial-schedule :a-factor))
          (db-file (increamemo-domain--db-file)))
     (let ((connection (increamemo-storage-open db-file)))
       (unwind-protect
@@ -363,13 +379,14 @@ When OCCURRED-AT is nil, use the current timestamp."
                  connection
                  (concat
                   "INSERT INTO increamemo_items("
-                  "type, title_snapshot, next_due_date, priority, "
+                  "type, title_snapshot, next_due_date, priority, a_factor, "
                   "state, created_at, updated_at"
-                  ") VALUES(?, ?, ?, ?, 'active', ?, ?)")
+                  ") VALUES(?, ?, ?, ?, ?, 'active', ?, ?)")
                  (list (plist-get normalized-item :type)
                        (plist-get normalized-item :title-snapshot)
                        validated-due-date
                        validated-priority
+                       validated-a-factor
                        validated-occurred-at
                        validated-occurred-at))
                 (let ((item-id

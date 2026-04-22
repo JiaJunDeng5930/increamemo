@@ -56,6 +56,30 @@
        "2026-04-21")
       "2026-04-25"))))
 
+(ert-deftest increamemo-default-reschedule-grows-interval-with-a-factor ()
+  "The default schedule grows from the previous interval and the item multiplier."
+  (let ((increamemo-reschedule-function #'increamemo-default-reschedule))
+    (should
+     (equal
+      (increamemo-policy-compute-next-due-date
+       (list :id 7 :a-factor 1.25)
+       'complete
+       '(:previous-interval-days 4)
+       "2026-04-21")
+      "2026-04-26"))))
+
+(ert-deftest increamemo-default-reschedule-enforces-minimum-growth ()
+  "The default schedule advances by at least one whole day every time."
+  (let ((increamemo-reschedule-function #'increamemo-default-reschedule))
+    (should
+     (equal
+      (increamemo-policy-compute-next-due-date
+       (list :id 7 :a-factor 1.05)
+       'complete
+       '(:previous-interval-days 10)
+       "2026-04-21")
+      "2026-05-02"))))
+
 (ert-deftest increamemo-policy-compute-next-due-date-passes-extended-context ()
   "The policy adapter passes history summary and today to rich callbacks."
   (let ((increamemo-reschedule-function
@@ -79,8 +103,7 @@
   "Completing a due item updates the due date and appends history."
   (increamemo-test-support-with-temp-db
     (increamemo-init)
-    (let ((increamemo-reschedule-function
-           (lambda (_item _action) "2026-04-28")))
+    (let ((increamemo-reschedule-function #'increamemo-default-reschedule))
       (let* ((item
               (increamemo-domain-ensure-item
                (list :type "file"
@@ -88,7 +111,8 @@
                      :title-snapshot "topic.md")
                10
                "2026-04-21"
-               "2026-04-21T08:00:00+00:00"))
+               "2026-04-17T08:00:00+00:00"
+               1.25))
              (result
               (increamemo-domain-complete-current
                (plist-get item :id)
@@ -96,7 +120,7 @@
                "2026-04-21T09:00:00+00:00")))
         (should (eq (plist-get result :status) 'completed))
         (should (equal (plist-get (plist-get result :item) :next-due-date)
-                       "2026-04-28"))
+                       "2026-04-26"))
         (should
          (equal
           (car
@@ -122,7 +146,7 @@
              (should (equal (plist-get history-summary :completed-count) 0))
              (should (equal (plist-get history-summary :last-reviewed-at)
                             "2026-04-19T07:00:00+00:00"))
-             (should (equal (plist-get history-summary :current-interval-days) 2))
+             (should (equal (plist-get history-summary :previous-interval-days) 2))
              (should (equal (plist-get history-summary :last-occurred-at)
                             "2026-04-21T08:00:00+00:00"))
              "2026-04-28")))

@@ -45,12 +45,14 @@
                  (increamemo-domain-test--source-ref "/tmp/notes/alpha.md")
                  10
                  "2026-04-21"
-                 "2026-04-21T08:00:00+00:00")))
+                 "2026-04-21T08:00:00+00:00"
+                 1.2)))
       (should (equal (plist-get item :type) "file"))
       (should (equal (plist-get item :path) "/tmp/notes/alpha.md"))
       (should (equal (plist-get item :state) "active"))
       (should (equal (plist-get item :next-due-date) "2026-04-21"))
       (should (= (plist-get item :priority) 10))
+      (should (= (plist-get item :a-factor) 1.2))
       (should
        (= 1
           (increamemo-test-support-count-rows

@@ -29,14 +29,27 @@
 (require 'increamemo-config)
 (require 'increamemo-time)
 
-(defun increamemo-default-reschedule (item action)
+(defun increamemo-default-reschedule (item action history-summary today)
   "Return the next due date for ITEM after ACTION.
 
-The default policy schedules the next review for the following day."
+The default policy grows the previous interval from HISTORY-SUMMARY using the
+stored multiplier from ITEM and anchors the next due date on TODAY."
   (ignore action)
-  (let ((base-date (or (plist-get item :next-due-date)
-                       (increamemo-time-today))))
-    (increamemo-time-add-days base-date 1)))
+  (let* ((a-factor (plist-get item :a-factor))
+         (previous-interval-days
+          (plist-get history-summary :previous-interval-days)))
+    (unless (and (numberp a-factor)
+                 (>= a-factor 1.0))
+      (user-error "Increamemo: invalid item a-factor: %S" a-factor))
+    (unless (and (integerp previous-interval-days)
+                 (<= 0 previous-interval-days))
+      (user-error
+       "Increamemo: invalid previous interval: %S"
+       previous-interval-days))
+    (let* ((grown-interval (ceiling (* previous-interval-days a-factor)))
+           (next-interval-days (max grown-interval
+                                    (1+ previous-interval-days))))
+      (increamemo-time-add-days today next-interval-days))))
 
 (defun increamemo-policy--invoke-reschedule-function
     (item action history-summary today)
