@@ -30,6 +30,41 @@ Emacs 29 can install the package directly from GitHub:
 (package-vc-install "https://github.com/JiaJunDeng5930/increamemo")
 ```
 
+### Install and Configure with `use-package`
+
+If you use `use-package`, you can install `increamemo` from Git and keep the required configuration in one place:
+
+```elisp
+(use-package increamemo
+  :vc (:url "https://github.com/JiaJunDeng5930/increamemo"
+       :rev :newest)
+  :custom
+  (increamemo-db-file
+   (expand-file-name "increamemo.sqlite" user-emacs-directory))
+  (increamemo-supported-file-formats '("md" "org" "txt"))
+  (increamemo-file-openers
+   '(("md" . find-file)
+     ("org" . find-file)
+     ("txt" . find-file)))
+  (increamemo-backends '(increamemo-file-backend))
+  :bind (("C-c p w" . increamemo-work)
+         ("C-c p b" . increamemo-board)
+         ("C-c p a" . increamemo-add-current)))
+```
+
+If you use EKG, include its backend in the same declaration:
+
+```elisp
+(use-package increamemo
+  :vc (:url "https://github.com/JiaJunDeng5930/increamemo"
+       :rev :newest)
+  :custom
+  (increamemo-db-file
+   (expand-file-name "increamemo.sqlite" user-emacs-directory))
+  (increamemo-backends
+   '(increamemo-file-backend increamemo-ekg-backend)))
+```
+
 ### Load from a Local Checkout
 
 ```elisp
