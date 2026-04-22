@@ -48,7 +48,7 @@
         (increamemo-test-support-with-file-buffer "notes/b.md" "beta"
           (setq note-b (expand-file-name buffer-file-name))
           (cl-letf (((symbol-function 'increamemo-time-today)
-                     (lambda () "2026-04-21"))
+                     (lambda () "2026-04-22"))
                     ((symbol-function 'increamemo-time-now)
                      (lambda ()
                        (prog1 (car time-values)
@@ -120,7 +120,7 @@
                 "SELECT title_snapshot, next_due_date, state "
                 "FROM increamemo_items WHERE title_snapshot = ?")
                '("b.md"))
-              '("b.md" "2026-04-21" "active")))))))))
+              '("b.md" "2026-04-22" "active")))))))))
 
 (provide 'increamemo-e2e-test)
 ;;; increamemo-e2e-test.el ends here

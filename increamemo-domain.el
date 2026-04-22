@@ -123,7 +123,7 @@ When DUE-DATE is non-nil, validate and return it."
                     priority
                     today
                     occurred-at))
-        today))))
+        (increamemo-time-add-days today 1)))))
 
 (defun increamemo-domain--row-to-item (row)
   "Convert database ROW into an item plist."

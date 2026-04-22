@@ -32,7 +32,7 @@
 (require 'increamemo-test-support)
 
 (ert-deftest increamemo-add-current-creates-active-item-from-current-file ()
-  "Adding the current file creates one active item due today."
+  "Adding the current file creates one active item due tomorrow by default."
   (increamemo-test-support-with-temp-db
     (increamemo-init)
     (let ((increamemo-supported-file-formats '("md"))
@@ -63,7 +63,7 @@
             (should (equal row
                            (list "file"
                                  (expand-file-name buffer-file-name)
-                                 "2026-04-21"
+                                 "2026-04-22"
                                  10
                                  "active"))))
           (should (= 1
