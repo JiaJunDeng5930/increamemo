@@ -2,3 +2,4 @@
 
 (eldev-use-package-archive 'gnu-elpa)
 (eldev-use-package-archive 'nongnu-elpa)
+(setq eldev-project-source-dirs '("." "test"))
