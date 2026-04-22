@@ -69,6 +69,14 @@
     map)
   "Keymap for `increamemo-work-mode'.")
 
+(defconst increamemo-work--priority-prompt
+  "Priority (0-100): "
+  "Prompt used for priority input.")
+
+(defconst increamemo-work--defer-prompt
+  "Defer to date (YYYY-MM-DD) or +days: "
+  "Prompt used for defer input.")
+
 (define-minor-mode increamemo-work-mode
   "Minor mode for increamemo work sessions."
   :lighter (:eval (increamemo-work--mode-line-text))
@@ -221,7 +229,7 @@ INPUT accepts either an ISO date or a positive day offset."
   (interactive)
   (increamemo-config-require-ready)
   (let* ((item-id (increamemo-work--require-current-item-id))
-         (raw-input (read-string "Defer to date or +days: "))
+         (raw-input (read-string increamemo-work--defer-prompt))
          (new-due-date
           (increamemo-work--parse-defer-date
            raw-input
@@ -249,7 +257,7 @@ INPUT accepts either an ISO date or a positive day offset."
   (increamemo-config-require-ready)
   (increamemo-domain-update-priority
    (increamemo-work--require-current-item-id)
-   (read-number "Priority: ")
+   (read-number increamemo-work--priority-prompt)
    (increamemo-time-now))
   (force-mode-line-update t))
 

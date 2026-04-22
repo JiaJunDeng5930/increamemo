@@ -230,7 +230,11 @@
                     ((symbol-function 'increamemo-time-now)
                      (lambda () "2026-04-21T09:00:00+00:00"))
                     ((symbol-function 'read-string)
-                     (lambda (&rest _args) "3")))
+                     (lambda (prompt &rest _args)
+                       (should
+                        (equal prompt
+                               "Defer to date (YYYY-MM-DD) or +days: "))
+                       "3")))
             (let ((opened-buffer (increamemo-work-start)))
               (unwind-protect
                   (with-current-buffer opened-buffer
@@ -347,7 +351,9 @@
                   ((symbol-function 'increamemo-time-now)
                    (lambda () "2026-04-21T09:00:00+00:00"))
                   ((symbol-function 'read-number)
-                   (lambda (&rest _args) 5)))
+                   (lambda (prompt &rest _args)
+                     (should (equal prompt "Priority (0-100): "))
+                     5)))
           (let ((opened-buffer (increamemo-work-start)))
             (unwind-protect
                 (with-current-buffer opened-buffer

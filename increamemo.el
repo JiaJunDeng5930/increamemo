@@ -52,7 +52,7 @@
   (interactive)
   (increamemo-config-require-ready)
   (increamemo-migration-require-initialized)
-  (let* ((priority (read-number "Priority: "))
+  (let* ((priority (read-number "Priority (0-100): "))
          (source-ref (increamemo-backend-identify-current (current-buffer)))
          (item (increamemo-domain-ensure-item
                 source-ref

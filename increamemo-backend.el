@@ -70,6 +70,22 @@ BACKEND follows the registry contract exposed by `increamemo-backends'."
   "Return the manual source-ref builder for BACKEND."
   (increamemo-backend--function backend "build-source-ref"))
 
+(defun increamemo-backend--type (backend)
+  "Return the item type string implemented by BACKEND."
+  (let* ((backend-name (symbol-name backend))
+         (type-function
+          (intern-soft (format "%s-type" backend))))
+    (cond
+     ((fboundp type-function)
+      (funcall type-function))
+     ((and (string-prefix-p "increamemo-" backend-name)
+           (string-suffix-p "-backend" backend-name))
+      (string-remove-suffix
+       "-backend"
+       (string-remove-prefix "increamemo-" backend-name)))
+     (t
+      (user-error "Increamemo: cannot derive type for backend: %S" backend)))))
+
 (defun increamemo-backend-identify-current (&optional buffer)
   "Return a source ref for BUFFER using the configured backends."
   (let ((target-buffer (or buffer (current-buffer)))
@@ -94,6 +110,11 @@ BACKEND follows the registry contract exposed by `increamemo-backends'."
                        opener))))
     (or source-ref
         (user-error "Increamemo: no backend recognized type: %s" type))))
+
+(defun increamemo-backend-supported-types ()
+  "Return the configured backend type strings."
+  (delete-dups
+   (mapcar #'increamemo-backend--type increamemo-backends)))
 
 (provide 'increamemo-backend)
 ;;; increamemo-backend.el ends here

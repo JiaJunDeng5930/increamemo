@@ -59,6 +59,14 @@
     map)
   "Keymap for `increamemo-board-mode'.")
 
+(defconst increamemo-board--priority-prompt
+  "Priority (0-100): "
+  "Prompt used for priority input.")
+
+(defconst increamemo-board--due-date-prompt
+  "Due date (YYYY-MM-DD): "
+  "Prompt used for due date input.")
+
 (defun increamemo-board--format-item (item)
   "Return the tabulated list entry for ITEM."
   (let ((id (plist-get item :id)))
@@ -76,6 +84,19 @@
 (defun increamemo-board--today ()
   "Return today's date for board filtering."
   (increamemo-time-today))
+
+(defun increamemo-board--read-type ()
+  "Prompt for an item type with completion."
+  (completing-read "Type: "
+                   (increamemo-backend-supported-types)
+                   nil
+                   t))
+
+(defun increamemo-board--read-locator (type)
+  "Prompt for a locator for TYPE."
+  (if (equal type "file")
+      (read-file-name "Locator (file path): " nil nil t)
+    (read-string "Locator: ")))
 
 (defun increamemo-board--current-item ()
   "Return the item snapshot for the current board row."
@@ -166,8 +187,8 @@
   "Prompt for item fields, persist the item, and refresh the board."
   (interactive)
   (increamemo-config-require-ready)
-  (let* ((type (read-string "Type: "))
-         (locator (read-string "Locator: "))
+  (let* ((type (increamemo-board--read-type))
+         (locator (increamemo-board--read-locator type))
          (draft-source-ref
           (increamemo-backend-build-source-ref type locator))
          (default-opener
@@ -183,8 +204,8 @@
            (if (> (length opener-input) 0)
                opener-input
              default-opener)))
-         (priority (read-number "Priority: "))
-         (due-date (read-string "Due date: ")))
+         (priority (read-number increamemo-board--priority-prompt))
+         (due-date (read-string increamemo-board--due-date-prompt)))
     (increamemo-domain-ensure-item
      source-ref
      priority
@@ -212,7 +233,8 @@
      (let ((item (increamemo-board--current-live-item-required)))
        (increamemo-domain-update-due-date
         (plist-get item :id)
-        (read-string "Due date: " (plist-get item :next-due-date))
+        (read-string increamemo-board--due-date-prompt
+                     (plist-get item :next-due-date))
         (increamemo-time-now))
        (increamemo-board-refresh)))))
 
@@ -225,7 +247,8 @@
      (let ((item (increamemo-board--current-live-item-required)))
        (increamemo-domain-update-priority
         (plist-get item :id)
-        (read-number "Priority: " (plist-get item :priority))
+        (read-number increamemo-board--priority-prompt
+                     (plist-get item :priority))
         (increamemo-time-now))
        (increamemo-board-refresh)))))
 

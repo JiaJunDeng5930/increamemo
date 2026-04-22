@@ -41,7 +41,7 @@
       (increamemo-test-support-with-file-buffer "notes/topic.md" "# title"
         (cl-letf (((symbol-function 'read-number)
                    (lambda (prompt)
-                     (should (equal prompt "Priority: "))
+                     (should (equal prompt "Priority (0-100): "))
                      10))
                   ((symbol-function 'increamemo-time-today)
                    (lambda () "2026-04-21"))
