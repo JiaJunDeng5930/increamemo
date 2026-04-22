@@ -1,4 +1,24 @@
-;;; increamemo-storage.el --- SQLite access for increamemo -*- lexical-binding: t; -*-
+;;; increamemo-storage.el --- SQLite access for increamemo  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 Jiajun Deng
+
+;; Author: Jiajun Deng <3230105930@zju.edu.cn>
+;; Maintainer: Jiajun Deng <3230105930@zju.edu.cn>
+
+;; This file is not part of GNU Emacs.
+
+;; This file is free software; you can redistribute it and/or modify it
+;; under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this file.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -6,13 +26,21 @@
 
 ;;; Code:
 
+(require 'sqlite)
+
 (declare-function sqlite-close "sqlite" (connection))
 (declare-function sqlite-execute "sqlite" (connection sql &optional values))
 (declare-function sqlite-open "sqlite" (file))
 (declare-function sqlite-select "sqlite" (connection sql &optional values))
 
+(defun increamemo-storage-require-sqlite ()
+  "Require SQLite support in this Emacs."
+  (unless (sqlite-available-p)
+    (user-error "Increamemo: this Emacs was built without SQLite support")))
+
 (defun increamemo-storage-open (db-file)
   "Open SQLite connection for DB-FILE."
+  (increamemo-storage-require-sqlite)
   (sqlite-open db-file))
 
 (defun increamemo-storage-close (connection)
