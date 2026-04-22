@@ -135,6 +135,33 @@
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
 
+(ert-deftest increamemo-board-show-due-toggles-back-to-all-items ()
+  "Due toggle returns to all items when invoked from the due filter."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-show-due)
+                      (should (eq increamemo-board--filter 'due))
+                      (increamemo-board-show-due)
+                      (should (eq increamemo-board--filter 'all))
+                      (should (equal (sort (increamemo-board-test--entry-labels
+                                            tabulated-list-entries)
+                                           #'string<)
+                                     '("archived.md"
+                                       "due.md"
+                                       "invalid.md"
+                                       "planned.md"))))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))))
+
 (ert-deftest increamemo-board-filter-invalid-shows-invalid-items ()
   "Invalid filter keeps only invalid items."
   (increamemo-test-support-with-temp-db

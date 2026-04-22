@@ -148,10 +148,13 @@
     (tabulated-list-print t)))
 
 (defun increamemo-board-show-due ()
-  "Switch the board to the due filter."
+  "Toggle the board between the due and all filters."
   (interactive)
   (increamemo-config-require-ready)
-  (setq increamemo-board--filter 'due)
+  (setq increamemo-board--filter
+        (if (eq increamemo-board--filter 'due)
+            'all
+          'due))
   (increamemo-board-refresh))
 
 (defun increamemo-board-show-planned ()
