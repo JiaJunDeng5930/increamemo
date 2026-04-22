@@ -92,12 +92,14 @@
             (let ((board-buffer (increamemo-board-open)))
               (unwind-protect
                   (with-current-buffer board-buffer
-                    (should (equal (sort (mapcar (lambda (entry) (aref (cadr entry) 4))
+                    (should (equal (sort (mapcar (lambda (entry) (aref (cadr entry)
+                                                                        (1- (length (cadr entry)))))
                                                  tabulated-list-entries)
                                          #'string<)
                                    '("a.md" "b.md")))
                     (increamemo-board-show-due)
-                    (should (equal (mapcar (lambda (entry) (aref (cadr entry) 4))
+                    (should (equal (mapcar (lambda (entry) (aref (cadr entry)
+                                                                  (1- (length (cadr entry)))))
                                            tabulated-list-entries)
                                    '("b.md"))))
                 (kill-buffer board-buffer)))

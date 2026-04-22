@@ -44,15 +44,22 @@
 (defvar-local increamemo-board--items nil
   "Current board item snapshots keyed by id.")
 
+(defvar-local increamemo-board--marks nil
+  "Pending row actions keyed by item id.")
+
 (defvar increamemo-board-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map tabulated-list-mode-map)
     (define-key map (kbd "a") #'increamemo-board-add-item)
-    (define-key map (kbd "A") #'increamemo-board-archive-current-item)
-    (define-key map (kbd "d") #'increamemo-board-update-current-due-date)
+    (define-key map (kbd "A") #'increamemo-board-toggle-archive-mark)
+    (define-key map (kbd "d") #'increamemo-board-mark-delete-current-item)
+    (define-key map (kbd "e") #'increamemo-board-update-current-due-date)
     (define-key map (kbd "p") #'increamemo-board-update-current-priority)
     (define-key map (kbd "t") #'increamemo-board-show-due)
+    (define-key map (kbd "T") #'increamemo-board-show-all)
+    (define-key map (kbd "h") #'increamemo-board-show-archived)
     (define-key map (kbd "i") #'increamemo-board-show-invalid)
+    (define-key map (kbd "x") #'increamemo-board-execute-marked-action)
     (define-key map (kbd "g") #'increamemo-board-refresh)
     (define-key map (kbd "RET") #'increamemo-board-open-current-item)
     (define-key map (kbd "q") #'increamemo-board-quit)
@@ -73,6 +80,10 @@
     (list
      id
      (vector
+      (pcase (alist-get id increamemo-board--marks)
+        ('delete "D")
+        ('archive "A")
+        (_ ""))
       (plist-get item :type)
       (or (plist-get item :next-due-date) "")
       (number-to-string (plist-get item :priority))
@@ -89,6 +100,18 @@
                    (increamemo-backend-supported-types)
                    nil
                    t))
+
+(defun increamemo-board--set-mark (item-id action)
+  "Set ITEM-ID mark to ACTION, toggling off when already equal."
+  (let ((existing (alist-get item-id increamemo-board--marks)))
+    (setq increamemo-board--marks
+          (assq-delete-all item-id increamemo-board--marks))
+    (unless (eq existing action)
+      (push (cons item-id action) increamemo-board--marks))))
+
+(defun increamemo-board--current-marked-action ()
+  "Return the pending action for the current row."
+  (alist-get (tabulated-list-get-id) increamemo-board--marks))
 
 (defun increamemo-board--current-item ()
   "Return the item snapshot for the current board row."
@@ -148,13 +171,10 @@
     (tabulated-list-print t)))
 
 (defun increamemo-board-show-due ()
-  "Toggle the board between the due and all filters."
+  "Switch the board to the due filter."
   (interactive)
   (increamemo-config-require-ready)
-  (setq increamemo-board--filter
-        (if (eq increamemo-board--filter 'due)
-            'all
-          'due))
+  (setq increamemo-board--filter 'due)
   (increamemo-board-refresh))
 
 (defun increamemo-board-show-planned ()
@@ -169,6 +189,13 @@
   (interactive)
   (increamemo-config-require-ready)
   (setq increamemo-board--filter 'invalid)
+  (increamemo-board-refresh))
+
+(defun increamemo-board-show-archived ()
+  "Switch the board to the archived filter."
+  (interactive)
+  (increamemo-config-require-ready)
+  (setq increamemo-board--filter 'archived)
   (increamemo-board-refresh))
 
 (defun increamemo-board-show-all ()
@@ -203,6 +230,45 @@
       (plist-get (increamemo-board--current-live-item-required) :id)
       (increamemo-time-now))
      (increamemo-board-refresh))))
+
+(defun increamemo-board-mark-delete-current-item ()
+  "Toggle a delete mark on the current board row."
+  (interactive)
+  (increamemo-config-require-ready)
+  (increamemo-board--set-mark
+   (plist-get (increamemo-board--current-item-required) :id)
+   'delete)
+  (increamemo-board-refresh))
+
+(defun increamemo-board-toggle-archive-mark ()
+  "Toggle an archive mark on the current board row."
+  (interactive)
+  (increamemo-config-require-ready)
+  (increamemo-board--set-mark
+   (plist-get (increamemo-board--current-item-required) :id)
+   'archive)
+  (increamemo-board-refresh))
+
+(defun increamemo-board-execute-marked-action ()
+  "Execute the marked action for the current board row."
+  (interactive)
+  (increamemo-config-require-ready)
+  (increamemo-board--call-with-missing-item-refresh
+   (lambda ()
+     (let* ((item (increamemo-board--current-live-item-required))
+            (item-id (plist-get item :id))
+            (action (or (alist-get item-id increamemo-board--marks)
+                        (user-error "Increamemo: no marked action on the current line"))))
+       (pcase action
+         ('archive
+          (increamemo-domain-archive-item item-id (increamemo-time-now)))
+         ('delete
+          (increamemo-domain-delete-item item-id (increamemo-time-now)))
+         (_
+          (user-error "Increamemo: unsupported marked action: %S" action)))
+       (setq increamemo-board--marks
+             (assq-delete-all item-id increamemo-board--marks))
+       (increamemo-board-refresh)))))
 
 (defun increamemo-board-update-current-due-date ()
   "Update the due date for the current board row item."
@@ -261,7 +327,8 @@
 (define-derived-mode increamemo-board-mode tabulated-list-mode "Increamemo Board"
   "Major mode for the increamemo board."
   (setq tabulated-list-format
-        [("Type" 12 t)
+        [("Mark" 4 nil)
+         ("Type" 12 t)
          ("Due Date" 12 t)
          ("Priority" 10 t)
          ("State" 10 t)
@@ -269,6 +336,7 @@
   (setq tabulated-list-padding 2)
   (setq increamemo-board--filter 'planned)
   (setq increamemo-board--items nil)
+  (setq increamemo-board--marks nil)
   (tabulated-list-init-header))
 
 (defun increamemo-board-open ()

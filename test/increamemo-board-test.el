@@ -48,7 +48,12 @@
 
 (defun increamemo-board-test--entry-labels (entries)
   "Return the title column from ENTRIES."
-  (mapcar (lambda (entry) (aref (cadr entry) 4)) entries))
+  (mapcar (lambda (entry) (aref (cadr entry) (1- (length (cadr entry)))))
+          entries))
+
+(defun increamemo-board-test--entry-marks (entries)
+  "Return the mark column from ENTRIES."
+  (mapcar (lambda (entry) (aref (cadr entry) 0)) entries))
 
 (defun increamemo-board-test--goto-entry (title)
   "Move point to the row whose title column matches TITLE."
@@ -135,8 +140,8 @@
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
 
-(ert-deftest increamemo-board-show-due-toggles-back-to-all-items ()
-  "Due toggle returns to all items when invoked from the due filter."
+(ert-deftest increamemo-board-show-all-remains-a-separate-command ()
+  "Due and all filters stay on separate commands."
   (increamemo-test-support-with-temp-db
     (increamemo-init)
     (let ((root (make-temp-file "increamemo-board-" t)))
@@ -150,7 +155,7 @@
                     (with-current-buffer buffer
                       (increamemo-board-show-due)
                       (should (eq increamemo-board--filter 'due))
-                      (increamemo-board-show-due)
+                      (increamemo-board-show-all)
                       (should (eq increamemo-board--filter 'all))
                       (should (equal (sort (increamemo-board-test--entry-labels
                                             tabulated-list-entries)
@@ -179,6 +184,26 @@
                       (should (eq increamemo-board--filter 'invalid))
                       (should (equal (increamemo-board-test--entry-labels tabulated-list-entries)
                                      '("invalid.md"))))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))))
+
+(ert-deftest increamemo-board-filter-archived-shows-only-archived-items ()
+  "Archived filter keeps only archived items."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-show-archived)
+                      (should (eq increamemo-board--filter 'archived))
+                      (should (equal (increamemo-board-test--entry-labels tabulated-list-entries)
+                                     '("archived.md"))))
                   (kill-buffer buffer)))))
         (delete-directory root t)))))
 
@@ -286,7 +311,11 @@
                                            tabulated-list-entries))
                                      "planned.md"))
                       (increamemo-board-test--goto-entry "due.md")
-                      (increamemo-board-archive-current-item)
+                      (increamemo-board-toggle-archive-mark)
+                      (should (equal (increamemo-board-test--entry-marks
+                                      tabulated-list-entries)
+                                     '("" "A")))
+                      (increamemo-board-execute-marked-action)
                       (should-not (member "due.md"
                                           (increamemo-board-test--entry-labels
                                            tabulated-list-entries))))
@@ -301,6 +330,44 @@
          "FROM increamemo_items WHERE title_snapshot = ?")
        '("planned.md"))
       '("2026-04-19" 5 "active")))))
+
+(ert-deftest increamemo-board-delete-mark-executes-and-removes-row ()
+  "Delete marking executes through `x' and removes the current row."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let ((root (make-temp-file "increamemo-board-" t)))
+      (unwind-protect
+          (progn
+            (increamemo-board-test--setup-items root)
+            (cl-letf (((symbol-function 'increamemo-time-today)
+                       (lambda () "2026-04-21"))
+                      ((symbol-function 'increamemo-time-now)
+                       (lambda () "2026-04-21T09:00:00+00:00")))
+              (let ((buffer (increamemo-board-open)))
+                (unwind-protect
+                    (with-current-buffer buffer
+                      (increamemo-board-test--goto-entry "planned.md")
+                      (increamemo-board-mark-delete-current-item)
+                      (should (member "D"
+                                      (increamemo-board-test--entry-marks
+                                       tabulated-list-entries)))
+                      (increamemo-board-execute-marked-action)
+                      (should-not (member "planned.md"
+                                          (increamemo-board-test--entry-labels
+                                           tabulated-list-entries))))
+                  (kill-buffer buffer)))))
+        (delete-directory root t)))
+    (should
+     (= 0
+        (increamemo-test-support-count-rows
+         increamemo-db-file
+         "SELECT COUNT(*) FROM increamemo_items WHERE title_snapshot = ?"
+         '("planned.md"))))
+    (should
+     (= 1
+        (increamemo-test-support-count-rows
+         increamemo-db-file
+         "SELECT COUNT(*) FROM increamemo_history WHERE action = 'deleted'")))))
 
 (ert-deftest increamemo-board-allows-updating-archived-item-due-date-in-all-view ()
   "Archived rows can update due date from the all-items board view."

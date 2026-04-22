@@ -428,7 +428,7 @@ When OCCURRED-AT is nil, use the current timestamp."
 (defun increamemo-domain-list-planned (&optional filter today)
   "Return planned items for FILTER using TODAY when needed.
 
-FILTER accepts `planned', `due', `invalid', and `all'."
+FILTER accepts `planned', `due', `invalid', `archived', and `all'."
   (let* ((effective-filter (or filter 'planned))
          (validated-today (and today (increamemo-domain--require-date today)))
          (db-file (increamemo-domain--db-file))
@@ -447,6 +447,10 @@ FILTER accepts `planned', `due', `invalid', and `all'."
             ('invalid
              (increamemo-domain--item-select-query
               "WHERE state = 'invalid'"
+              increamemo-domain--due-order-clause))
+            ('archived
+             (increamemo-domain--item-select-query
+              "WHERE state = 'archived'"
               increamemo-domain--due-order-clause))
             ('all
              (increamemo-domain--item-select-query
