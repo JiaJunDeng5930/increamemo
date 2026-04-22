@@ -57,6 +57,19 @@
         (user-error (cadr err)))
       "Increamemo: invalid opener policy: drop"))))
 
+(ert-deftest increamemo-config-require-ready-rejects-directory-path ()
+  "Readiness checks reject directory paths for the database file."
+  (let ((temp-dir (make-temp-file "increamemo-config-dir-" t)))
+    (unwind-protect
+        (let ((increamemo-db-file temp-dir))
+          (should-error (increamemo-config-require-ready) :type 'user-error))
+      (delete-directory temp-dir t))))
+
+(ert-deftest increamemo-config-require-ready-rejects-directory-syntax-path ()
+  "Readiness checks reject paths that syntactically name a directory."
+  (let ((increamemo-db-file "/tmp/increamemo-directory/"))
+    (should-error (increamemo-config-require-ready) :type 'user-error)))
+
 (ert-deftest increamemo-config-require-ready-rejects-invalid-mode-line-function ()
   "Readiness checks reject non-callable mode line formatters."
   (let ((increamemo-db-file "/tmp/increamemo.sqlite")

@@ -66,6 +66,14 @@
   (when increamemo-db-file
     (expand-file-name increamemo-db-file)))
 
+(defun increamemo-config--valid-db-file-p (path)
+  "Return non-nil when PATH names a usable database file location."
+  (and (stringp path)
+       (> (length path) 0)
+       (let ((expanded-path (expand-file-name path)))
+         (and (not (directory-name-p expanded-path))
+              (not (file-directory-p expanded-path))))))
+
 (defun increamemo-config-snapshot ()
   "Return a plist snapshot of the current configuration."
   (list :db-file (increamemo-config-db-file)
@@ -81,8 +89,7 @@
 
 (defun increamemo-config-require-ready ()
   "Return a configuration snapshot or raise `user-error'."
-  (unless (and (stringp increamemo-db-file)
-               (> (length increamemo-db-file) 0))
+  (unless (increamemo-config--valid-db-file-p increamemo-db-file)
     (user-error "Increamemo: `increamemo-db-file' is not configured"))
   (unless
       (increamemo-config--valid-invalid-opener-policy-p
