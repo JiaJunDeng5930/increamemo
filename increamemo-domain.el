@@ -177,6 +177,12 @@ configured priority schedule rules using OCCURRED-AT as the base date."
          (end-time (date-to-time (concat end-date " 00:00:00 +0000"))))
     (floor (/ (float-time (time-subtract end-time start-time)) 86400))))
 
+(defun increamemo-domain--require-day-offset (value)
+  "Return VALUE when it is a valid day offset."
+  (unless (integerp value)
+    (user-error "Increamemo: invalid day offset: %S" value))
+  value)
+
 (defun increamemo-domain--history-summary (connection item-id &optional row)
   "Return a summary plist for ITEM-ID from CONNECTION.
 
@@ -486,6 +492,89 @@ FILTER accepts `planned', `due', `invalid', `archived', and `all'."
                      connection
                      (increamemo-domain--row-to-item row)))
                   (increamemo-storage-select connection query values))
+        (increamemo-storage-close connection)))))
+
+(defun increamemo-domain-earliest-due-distance (today)
+  "Return the earliest due date and its distance from TODAY.
+
+The returned plist contains `:earliest-due-date' and `:days'.  A negative
+day count means the earliest due date is before TODAY."
+  (let ((validated-today (increamemo-domain--require-date today))
+        (db-file (increamemo-domain--db-file)))
+    (let ((connection (increamemo-storage-open db-file)))
+      (unwind-protect
+          (let ((earliest-due-date
+                 (increamemo-storage-select-value
+                  connection
+                  (concat
+                   "SELECT next_due_date FROM increamemo_items "
+                   "WHERE next_due_date IS NOT NULL "
+                   "ORDER BY next_due_date ASC LIMIT 1"))))
+            (when earliest-due-date
+              (list :earliest-due-date earliest-due-date
+                    :days (increamemo-domain--days-between
+                           validated-today
+                           earliest-due-date))))
+        (increamemo-storage-close connection)))))
+
+(defun increamemo-domain-shift-all-due-dates (days &optional occurred-at)
+  "Add DAYS to every item due date and return the update count.
+
+When OCCURRED-AT is nil, use the current timestamp."
+  (let ((validated-days (increamemo-domain--require-day-offset days))
+        (validated-occurred-at
+         (increamemo-domain--require-timestamp
+          (or occurred-at (increamemo-time-now))))
+        (db-file (increamemo-domain--db-file)))
+    (let ((connection (increamemo-storage-open db-file)))
+      (unwind-protect
+          (increamemo-storage-with-transaction connection
+            (let ((rows (increamemo-storage-select
+                         connection
+                         (increamemo-domain--item-select-query
+                          "WHERE next_due_date IS NOT NULL"
+                          " ORDER BY id ASC")))
+                  (updated-count 0))
+              (dolist (row rows)
+                (let* ((item-id (nth 0 row))
+                       (previous-due-date (nth 3 row))
+                       (new-due-date
+                        (increamemo-time-add-days
+                         previous-due-date
+                         validated-days))
+                       (version (nth 10 row)))
+                  (unless (= 1
+                             (increamemo-domain--execute-guarded-update
+                              connection
+                              (concat
+                               "UPDATE increamemo_items "
+                               "SET next_due_date = ?, updated_at = ?, "
+                               "version = version + 1 "
+                               "WHERE id = ? AND version = ?")
+                              (list new-due-date
+                                    validated-occurred-at
+                                    item-id
+                                    version)))
+                    (increamemo-domain--adjudicate-guarded-update
+                     connection
+                     item-id
+                     "due_changed"
+                     '(active invalid archived)))
+                  (increamemo-domain--insert-history
+                   connection
+                   item-id
+                   "due_changed"
+                   validated-occurred-at
+                   (nth 5 row)
+                   (nth 5 row)
+                   previous-due-date
+                   new-due-date
+                   (nth 4 row)
+                   (nth 4 row))
+                  (setq updated-count (1+ updated-count))))
+              (list :updated-count updated-count
+                    :days validated-days
+                    :occurred-at validated-occurred-at)))
         (increamemo-storage-close connection)))))
 
 (defun increamemo-domain-archive-item (item-id &optional occurred-at)

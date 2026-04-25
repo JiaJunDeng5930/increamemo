@@ -78,5 +78,39 @@
   (increamemo-migration-require-initialized)
   (increamemo-board-open))
 
+;;;###autoload
+(defun increamemo-earliest-due-distance ()
+  "Report how many days the earliest due date is from today."
+  (interactive)
+  (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
+  (let ((result
+         (increamemo-domain-earliest-due-distance
+          (increamemo-time-today))))
+    (if result
+        (message
+         "Increamemo: earliest due date is %s (%+d days from today)"
+         (plist-get result :earliest-due-date)
+         (plist-get result :days))
+      (message "Increamemo: no items with due dates"))
+    result))
+
+;;;###autoload
+(defun increamemo-shift-all-due-dates (&optional days)
+  "Add DAYS to every item due date."
+  (interactive)
+  (increamemo-config-require-ready)
+  (increamemo-migration-require-initialized)
+  (let* ((resolved-days
+          (or days
+              (read-number "Days to add to all due dates: ")))
+         (result
+          (increamemo-domain-shift-all-due-dates resolved-days)))
+    (message
+     "Increamemo: shifted %d due dates by %+d days"
+     (plist-get result :updated-count)
+     (plist-get result :days))
+    result))
+
 (provide 'increamemo)
 ;;; increamemo.el ends here

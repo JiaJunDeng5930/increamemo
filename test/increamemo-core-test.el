@@ -39,7 +39,9 @@
     (dolist (command '(increamemo-init
                        increamemo-add-current
                        increamemo-work
-                       increamemo-board))
+                       increamemo-board
+                       increamemo-earliest-due-distance
+                       increamemo-shift-all-due-dates))
       (should-error (funcall command) :type 'user-error))))
 
 (ert-deftest increamemo-init-creates-base-schema ()
@@ -110,7 +112,46 @@
           (should-not prompted)))
       (should-error (increamemo-work) :type 'user-error)
       (should-error (increamemo-board) :type 'user-error)
+      (should-error (increamemo-earliest-due-distance) :type 'user-error)
+      (should-error (increamemo-shift-all-due-dates 1) :type 'user-error)
       (should-not (file-exists-p increamemo-db-file)))))
+
+(ert-deftest increamemo-public-due-commands-report-and-shift-due-dates ()
+  "Public due commands report the earliest distance and shift all due dates."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (increamemo-domain-ensure-item
+     (list :type "file"
+           :path "/tmp/notes/public-one.md"
+           :title-snapshot "public-one.md")
+     15
+     "2026-04-22"
+     "2026-04-21T08:00:00+00:00")
+    (increamemo-domain-ensure-item
+     (list :type "file"
+           :path "/tmp/notes/public-two.md"
+           :title-snapshot "public-two.md")
+     20
+     "2026-04-25"
+     "2026-04-21T08:01:00+00:00")
+    (cl-letf (((symbol-function 'increamemo-time-today)
+               (lambda (&optional _time-value) "2026-04-24"))
+              ((symbol-function 'message)
+               (lambda (&rest _args) nil)))
+      (let ((distance (increamemo-earliest-due-distance)))
+        (should (equal (plist-get distance :earliest-due-date) "2026-04-22"))
+        (should (= (plist-get distance :days) -2)))
+      (let ((shifted (increamemo-shift-all-due-dates 2)))
+        (should (= (plist-get shifted :updated-count) 2))
+        (should
+         (equal
+          (increamemo-test-support-select-row
+           increamemo-db-file
+           (concat
+            "SELECT group_concat(next_due_date, ',') "
+            "FROM (SELECT next_due_date FROM increamemo_items "
+            "ORDER BY next_due_date ASC)"))
+          '("2026-04-24,2026-04-27")))))))
 
 (ert-deftest increamemo-board-open-gates-before-creating-buffer ()
   "Board runtime open checks gates before creating the board buffer."

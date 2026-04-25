@@ -326,6 +326,76 @@
       (should (equal (plist-get result :state) "archived"))
       (should (equal (plist-get result :next-due-date) "2026-04-25")))))
 
+(ert-deftest increamemo-domain-earliest-due-distance-includes-all-items ()
+  "Earliest due distance reports days from today to the earliest due date."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((active-item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/active.md")
+             15
+             "2026-04-25"
+             "2026-04-21T08:00:00+00:00"))
+           (archived-item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/archived.md")
+             20
+             "2026-04-22"
+             "2026-04-21T08:01:00+00:00"))
+           (_archived
+            (increamemo-domain-archive-item
+             (plist-get archived-item :id)
+             "2026-04-21T08:30:00+00:00"))
+           (distance (increamemo-domain-earliest-due-distance "2026-04-24")))
+      (should (equal (plist-get active-item :next-due-date) "2026-04-25"))
+      (should (equal (plist-get distance :earliest-due-date) "2026-04-22"))
+      (should (= (plist-get distance :days) -2)))))
+
+(ert-deftest increamemo-domain-shift-all-due-dates-updates-every-item ()
+  "Shifting due dates adds the day offset to every item due date."
+  (increamemo-test-support-with-temp-db
+    (increamemo-init)
+    (let* ((active-item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/active-shift.md")
+             15
+             "2026-04-25"
+             "2026-04-21T08:00:00+00:00"))
+           (archived-item
+            (increamemo-domain-ensure-item
+             (increamemo-domain-test--source-ref "/tmp/notes/archived-shift.md")
+             20
+             "2026-04-22"
+             "2026-04-21T08:01:00+00:00"))
+           (_archived
+            (increamemo-domain-archive-item
+             (plist-get archived-item :id)
+             "2026-04-21T08:30:00+00:00"))
+           (result
+            (increamemo-domain-shift-all-due-dates
+             3
+             "2026-04-21T09:00:00+00:00")))
+      (should (= (plist-get result :updated-count) 2))
+      (should
+       (equal
+        (increamemo-test-support-select-row
+         increamemo-db-file
+         "SELECT next_due_date FROM increamemo_items WHERE id = ?"
+         (list (plist-get active-item :id)))
+        '("2026-04-28")))
+      (should
+       (equal
+        (increamemo-test-support-select-row
+         increamemo-db-file
+         "SELECT next_due_date, state FROM increamemo_items WHERE id = ?"
+         (list (plist-get archived-item :id)))
+        '("2026-04-25" "archived")))
+      (should
+       (= 2
+          (increamemo-test-support-count-rows
+           increamemo-db-file
+           "SELECT COUNT(*) FROM increamemo_history WHERE action = 'due_changed'"))))))
+
 (ert-deftest increamemo-domain-update-priority-aborts-when-version-check-fails ()
   "Version-guarded updates stop when the item row is not updated."
   (increamemo-test-support-with-temp-db
